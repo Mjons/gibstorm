@@ -1,0 +1,3635 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GIBSTORM</title>
+    <style>
+      :root {
+        --blood: #a1071c;
+        --blood-bright: #e01530;
+        --bone: #e8e0d0;
+        --void: #0a0608;
+        --acid: #b8ff2e;
+        --steel: #3a3540;
+        --gold: #ffd24a;
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: var(--void);
+        font-family: "Courier New", monospace;
+      }
+      canvas {
+        display: block;
+      }
+      #hud {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 10;
+      }
+      .hud-top {
+        position: absolute;
+        top: 14px;
+        left: 18px;
+        right: 18px;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+      }
+      .stat {
+        color: var(--bone);
+        text-shadow: 0 0 8px rgba(224, 21, 48, 0.6);
+      }
+      .stat .label {
+        font-size: 10px;
+        letter-spacing: 3px;
+        color: #8a7f86;
+      }
+      .stat .val {
+        font-size: 28px;
+        font-weight: bold;
+        line-height: 1;
+      }
+      #sp-stat .val {
+        color: var(--acid);
+      }
+      #combo {
+        position: absolute;
+        top: 70px;
+        left: 50%;
+        transform: translateX(-50%);
+        text-align: center;
+        color: var(--blood-bright);
+        font-weight: bold;
+        font-size: 42px;
+        text-shadow: 0 0 16px var(--blood);
+        opacity: 0;
+        transition: opacity 0.15s;
+      }
+      #combo .sub {
+        font-size: 11px;
+        letter-spacing: 4px;
+        color: var(--bone);
+      }
+      #weapon {
+        position: absolute;
+        bottom: 22px;
+        left: 22px;
+        color: var(--gold);
+        text-shadow: 0 0 10px rgba(255, 180, 40, 0.5);
+      }
+      #weapon .wname {
+        font-size: 22px;
+        font-weight: bold;
+        letter-spacing: 3px;
+      }
+      #weapon .wammo {
+        font-size: 13px;
+        color: var(--bone);
+        letter-spacing: 2px;
+      }
+      #objective {
+        position: absolute;
+        bottom: 22px;
+        right: 22px;
+        text-align: right;
+        color: #8a7f86;
+        font-size: 12px;
+        letter-spacing: 2px;
+      }
+      #objective .obj {
+        color: var(--acid);
+        font-size: 15px;
+        font-weight: bold;
+      }
+      #quip {
+        position: absolute;
+        bottom: 90px;
+        width: 100%;
+        text-align: center;
+        color: var(--gold);
+        font-weight: bold;
+        font-style: italic;
+        font-size: clamp(18px, 3.4vw, 30px);
+        letter-spacing: 2px;
+        text-shadow:
+          2px 2px 0 #000,
+          0 0 18px rgba(255, 180, 40, 0.45);
+        opacity: 0;
+        transition: opacity 0.25s;
+      }
+      #hpbar {
+        position: absolute;
+        bottom: 22px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: min(420px, 48vw);
+        height: 14px;
+        background: #1a1014;
+        border: 1px solid var(--steel);
+      }
+      #hpfill {
+        height: 100%;
+        width: 100%;
+        background: linear-gradient(90deg, var(--blood), var(--blood-bright));
+        transition: width 0.12s;
+      }
+      #novabar {
+        position: absolute;
+        bottom: 42px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: min(420px, 48vw);
+        height: 5px;
+        background: #101a10;
+      }
+      #novafill {
+        height: 100%;
+        width: 0%;
+        background: var(--acid);
+        box-shadow: 0 0 8px var(--acid);
+        transition: width 0.15s;
+      }
+      #bossbar {
+        position: absolute;
+        top: 64px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: min(560px, 70vw);
+        display: none;
+      }
+      #bossname {
+        text-align: center;
+        color: var(--blood-bright);
+        font-weight: bold;
+        letter-spacing: 4px;
+        font-size: 15px;
+        text-shadow: 0 0 12px var(--blood);
+        margin-bottom: 4px;
+      }
+      #bossback {
+        height: 12px;
+        background: #1a1014;
+        border: 1px solid var(--steel);
+      }
+      #bossfill {
+        height: 100%;
+        width: 100%;
+        background: linear-gradient(90deg, #5a0414, var(--blood-bright));
+        transition: width 0.1s;
+      }
+      #wave-banner {
+        position: absolute;
+        top: 36%;
+        width: 100%;
+        text-align: center;
+        color: var(--bone);
+        font-size: 44px;
+        font-weight: bold;
+        letter-spacing: 8px;
+        text-shadow: 0 0 24px var(--blood);
+        opacity: 0;
+        pointer-events: none;
+      }
+      #vignette {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 5;
+      }
+      /* cutscene letterbox + title */
+      .lb {
+        position: fixed;
+        left: 0;
+        right: 0;
+        height: 0;
+        background: #000;
+        z-index: 14;
+        transition: height 0.45s ease;
+      }
+      #lbTop {
+        top: 0;
+      }
+      #lbBottom {
+        bottom: 0;
+      }
+      body.cinema .lb {
+        height: 11vh;
+      }
+      #bossTitle {
+        position: fixed;
+        top: 50%;
+        left: 0;
+        right: 0;
+        transform: translateY(-50%);
+        text-align: center;
+        z-index: 15;
+        opacity: 0;
+        transition: opacity 0.4s;
+        pointer-events: none;
+      }
+      #bossTitle .bt-name {
+        font-size: clamp(34px, 7vw, 68px);
+        font-weight: bold;
+        letter-spacing: 10px;
+        color: var(--blood-bright);
+        text-shadow:
+          0 0 30px var(--blood),
+          3px 3px 0 #000;
+      }
+      #bossTitle .bt-sub {
+        font-size: 14px;
+        letter-spacing: 6px;
+        color: var(--gold);
+        margin-top: 6px;
+      }
+      /* skill tree */
+      #skilltree {
+        position: fixed;
+        inset: 0;
+        z-index: 18;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: rgba(6, 3, 5, 0.9);
+        backdrop-filter: blur(2px);
+      }
+      #skilltree.open {
+        display: flex;
+      }
+      #treePanel {
+        width: min(860px, 94vw);
+        max-height: 92vh;
+        overflow-y: auto;
+        border: 1px solid var(--steel);
+        background: #0d080b;
+        padding: 26px;
+        color: var(--bone);
+      }
+      #treePanel h2 {
+        letter-spacing: 8px;
+        color: var(--acid);
+        text-align: center;
+      }
+      #treePanel .sp {
+        text-align: center;
+        margin: 8px 0 20px;
+        color: var(--gold);
+        letter-spacing: 2px;
+      }
+      #treeGrid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 14px;
+      }
+      .branch-title {
+        text-align: center;
+        letter-spacing: 4px;
+        font-weight: bold;
+        padding-bottom: 4px;
+        border-bottom: 1px solid var(--steel);
+      }
+      .branch {
+        display: flex;
+        flex-direction: column-reverse;
+        gap: 10px;
+      } /* climb upward */
+      .node {
+        border: 1px solid var(--steel);
+        padding: 10px;
+        cursor: pointer;
+        background: #150d12;
+        transition: all 0.15s;
+      }
+      .node:hover {
+        border-color: var(--acid);
+      }
+      .node .n-name {
+        font-weight: bold;
+        letter-spacing: 2px;
+        font-size: 14px;
+      }
+      .node .n-desc {
+        font-size: 11px;
+        color: #9a8f96;
+        margin-top: 3px;
+      }
+      .node .n-cost {
+        font-size: 11px;
+        color: var(--gold);
+        margin-top: 4px;
+      }
+      .node.bought {
+        border-color: var(--acid);
+        background: #13200a;
+        cursor: default;
+      }
+      .node.bought .n-cost {
+        color: var(--acid);
+      }
+      .node.locked {
+        opacity: 0.35;
+        cursor: not-allowed;
+      }
+      #treeClose {
+        display: block;
+        margin: 22px auto 0;
+        font-family: inherit;
+        background: var(--blood);
+        border: none;
+        color: var(--bone);
+        font-size: 15px;
+        letter-spacing: 4px;
+        padding: 10px 30px;
+        cursor: pointer;
+        font-weight: bold;
+      }
+      #overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 20;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: rgba(8, 4, 6, 0.92);
+        color: var(--bone);
+        text-align: center;
+      }
+      #overlay h1 {
+        font-size: clamp(48px, 10vw, 96px);
+        letter-spacing: 12px;
+        color: var(--blood-bright);
+        text-shadow:
+          0 0 30px var(--blood),
+          0 0 60px var(--blood);
+        margin-bottom: 8px;
+      }
+      #overlay .tag {
+        color: #8a7f86;
+        letter-spacing: 4px;
+        font-size: 12px;
+        margin-bottom: 26px;
+      }
+      #overlay .controls {
+        margin-bottom: 24px;
+        line-height: 1.9;
+        font-size: 13px;
+        color: var(--bone);
+      }
+      #overlay .controls b {
+        color: var(--acid);
+      }
+      #overlay button {
+        pointer-events: auto;
+        font-family: inherit;
+        background: var(--blood);
+        border: none;
+        color: var(--bone);
+        font-size: 20px;
+        letter-spacing: 6px;
+        padding: 16px 48px;
+        cursor: pointer;
+        font-weight: bold;
+      }
+      #overlay button:hover {
+        background: var(--blood-bright);
+        box-shadow: 0 0 24px var(--blood);
+      }
+      #overlay .fx-toggle {
+        margin-top: 14px;
+        font-size: 11px;
+        color: #8a7f86;
+        pointer-events: auto;
+        cursor: pointer;
+        user-select: none;
+      }
+      #overlay .fx-toggle input {
+        accent-color: var(--blood);
+      }
+      #finalscore {
+        font-size: 22px;
+        color: var(--acid);
+        margin-bottom: 18px;
+        display: none;
+        letter-spacing: 2px;
+      }
+      #crosshair {
+        position: fixed;
+        width: 22px;
+        height: 22px;
+        z-index: 9;
+        pointer-events: none;
+        transform: translate(-50%, -50%);
+      }
+      #crosshair::before,
+      #crosshair::after {
+        content: "";
+        position: absolute;
+        background: var(--acid);
+      }
+      #crosshair::before {
+        left: 50%;
+        top: 0;
+        width: 2px;
+        height: 100%;
+        transform: translateX(-50%);
+      }
+      #crosshair::after {
+        top: 50%;
+        left: 0;
+        height: 2px;
+        width: 100%;
+        transform: translateY(-50%);
+      }
+      #crosshair.center {
+        left: 50% !important;
+        top: 50% !important;
+      }
+      .hidden {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="vignette"></div>
+    <div class="lb" id="lbTop"></div>
+    <div class="lb" id="lbBottom"></div>
+    <div id="bossTitle">
+      <div class="bt-name"></div>
+      <div class="bt-sub"></div>
+    </div>
+    <div id="crosshair" class="hidden"></div>
+    <div id="hud" class="hidden">
+      <div class="hud-top">
+        <div class="stat">
+          <div class="label">SCORE</div>
+          <div class="val" id="score">0</div>
+        </div>
+        <div class="stat" id="sp-stat">
+          <div class="label">SKILL PTS [T]</div>
+          <div class="val" id="sp">0</div>
+        </div>
+        <div class="stat" style="text-align: center">
+          <div class="label">SECTOR &middot; WAVE</div>
+          <div class="val">
+            <span id="sector">1</span>&middot;<span id="wave">1</span>
+          </div>
+        </div>
+        <div class="stat" style="text-align: right">
+          <div class="label">KILLS</div>
+          <div class="val" id="kills">0</div>
+        </div>
+      </div>
+      <div id="bossbar">
+        <div id="bossname"></div>
+        <div id="bossback"><div id="bossfill"></div></div>
+      </div>
+      <div id="combo">
+        <span id="combo-x">x2</span>
+        <div class="sub">CARNAGE COMBO</div>
+      </div>
+      <div id="weapon">
+        <div class="wname">SHREDDER</div>
+        <div class="wammo">&infin;</div>
+      </div>
+      <div id="objective">
+        <div class="label">OBJECTIVE</div>
+        <div class="obj" id="objtext">CLEAR THE SECTOR</div>
+      </div>
+      <div id="quip"></div>
+      <div id="wave-banner">WAVE 1</div>
+      <div id="novabar"><div id="novafill"></div></div>
+      <div id="hpbar"><div id="hpfill"></div></div>
+    </div>
+    <div id="skilltree">
+      <div id="treePanel">
+        <h2>MUTATIONS</h2>
+        <div class="sp">
+          SKILL POINTS: <span id="treeSp">0</span> &mdash; climb each branch
+          bottom to top
+        </div>
+        <div id="treeGrid"></div>
+        <button id="treeClose">BACK TO THE SLAUGHTER [T]</button>
+      </div>
+    </div>
+    <div id="overlay">
+      <h1>GIBSTORM</h1>
+      <div class="tag">
+        FIGHT &middot; ADVANCE &middot; MUTATE &mdash; THE PIT GOES DEEPER
+      </div>
+      <div id="finalscore"></div>
+      <div class="controls">
+        <b>WASD</b> move &nbsp;&middot;&nbsp; <b>MOUSE</b> aim
+        &nbsp;&middot;&nbsp; <b>HOLD CLICK</b> shred &nbsp;&middot;&nbsp;
+        <b>SPACE</b> blood-nova<br />
+        <b>T</b> skill tree &nbsp;&middot;&nbsp; <b>M</b> mute
+        &nbsp;&middot;&nbsp; perspective <b>ALTERNATES</b> by sector<br />
+        every 3rd sector: <b style="color: #e01530">BOSS FIGHT</b> with phase
+        shifts &mdash; watch for telegraphs<br />
+        <span style="color: #8a7f86"
+          >acid pools burn &middot; gold ones flee &middot; barrels chain
+          &middot; corridors aren't safe</span
+        >
+      </div>
+      <button id="startbtn">ENTER THE PIT</button>
+      <label class="fx-toggle"
+        ><input type="checkbox" id="reduceFx" /> reduce flashing / heavy FX
+        (photosensitivity)</label
+      >
+      <label class="fx-toggle"
+        ><input type="checkbox" id="muteChk" /> start muted</label
+      >
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+      (() => {
+        const V = THREE.Vector3;
+        let reduceFx = false;
+
+        // ================= AUDIO ENGINE (procedural, zero assets) =================
+        let actx = null,
+          master = null,
+          muted = false,
+          noiseBuf = null;
+        function initAudio() {
+          if (actx) {
+            if (actx.state === "suspended") actx.resume();
+            return;
+          }
+          const AC = window.AudioContext || window.webkitAudioContext;
+          if (!AC) return;
+          actx = new AC();
+          master = actx.createGain();
+          master.gain.value = muted ? 0 : 0.45;
+          master.connect(actx.destination);
+          noiseBuf = actx.createBuffer(
+            1,
+            actx.sampleRate * 1.2,
+            actx.sampleRate,
+          );
+          const d = noiseBuf.getChannelData(0);
+          for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+        }
+        function setMuted(m) {
+          muted = m;
+          if (master) master.gain.value = m ? 0 : 0.45;
+        }
+        function tone(f0, f1, dur, type, vol, delay = 0) {
+          if (!actx || muted) return;
+          const t0 = actx.currentTime + delay;
+          const o = actx.createOscillator(),
+            g = actx.createGain();
+          o.type = type;
+          o.frequency.setValueAtTime(f0, t0);
+          o.frequency.exponentialRampToValueAtTime(Math.max(f1, 1), t0 + dur);
+          g.gain.setValueAtTime(vol, t0);
+          g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+          o.connect(g);
+          g.connect(master);
+          o.start(t0);
+          o.stop(t0 + dur + 0.02);
+        }
+        function noiseHit(dur, vol, filt, delay = 0) {
+          if (!actx || muted) return;
+          const t0 = actx.currentTime + delay;
+          const s = actx.createBufferSource();
+          s.buffer = noiseBuf;
+          const f = actx.createBiquadFilter();
+          f.type = "lowpass";
+          f.frequency.value = filt;
+          const g = actx.createGain();
+          g.gain.setValueAtTime(vol, t0);
+          g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+          s.connect(f);
+          f.connect(g);
+          g.connect(master);
+          s.start(t0);
+          s.stop(t0 + dur + 0.02);
+        }
+        const sfx = {
+          shot: (k) => {
+            if (k === "shredder") tone(700, 220, 0.07, "square", 0.16);
+            else if (k === "scatter") {
+              noiseHit(0.16, 0.5, 2400);
+              tone(300, 80, 0.12, "square", 0.2);
+            } else if (k === "ripper") tone(900, 300, 0.05, "sawtooth", 0.12);
+            else if (k === "boom") {
+              tone(160, 50, 0.25, "square", 0.35);
+              noiseHit(0.2, 0.4, 1200);
+            }
+          },
+          rail: () => {
+            tone(180, 2400, 0.28, "sawtooth", 0.3);
+            noiseHit(0.15, 0.25, 5000, 0.05);
+          },
+          boom: () => {
+            tone(90, 28, 0.5, "sine", 0.7);
+            noiseHit(0.45, 0.7, 900);
+          },
+          squish: () => {
+            noiseHit(0.14, 0.5, 420);
+            tone(220, 60, 0.13, "triangle", 0.3);
+          },
+          bigsquish: () => {
+            noiseHit(0.3, 0.7, 300);
+            tone(160, 40, 0.3, "triangle", 0.45);
+          },
+          pickup: () => {
+            tone(520, 520, 0.08, "square", 0.22);
+            tone(780, 780, 0.1, "square", 0.22, 0.09);
+          },
+          nova: () => {
+            tone(80, 900, 0.45, "sawtooth", 0.4);
+            tone(60, 24, 0.7, "sine", 0.7, 0.4);
+            noiseHit(0.6, 0.6, 1500, 0.4);
+          },
+          hurt: () => {
+            tone(140, 70, 0.16, "square", 0.3);
+          },
+          gate: () => {
+            tone(60, 38, 0.9, "sawtooth", 0.35);
+            noiseHit(0.9, 0.3, 300);
+          },
+          wave: () => {
+            tone(220, 220, 0.1, "square", 0.2);
+            tone(330, 330, 0.12, "square", 0.2, 0.12);
+          },
+          roar: () => {
+            tone(120, 32, 1.1, "sawtooth", 0.6);
+            tone(95, 26, 1.1, "sawtooth", 0.5, 0.04);
+            noiseHit(1, 0.5, 500, 0.1);
+          },
+          slamWarn: () => {
+            tone(440, 440, 0.09, "square", 0.2);
+            tone(440, 440, 0.09, "square", 0.2, 0.14);
+          },
+          slam: () => {
+            tone(70, 22, 0.4, "sine", 0.8);
+            noiseHit(0.35, 0.7, 700);
+          },
+          spit: () => {
+            noiseHit(0.18, 0.4, 1600);
+            tone(500, 180, 0.15, "sawtooth", 0.18);
+          },
+          buy: () => {
+            tone(400, 800, 0.12, "square", 0.25);
+            tone(800, 1200, 0.12, "square", 0.2, 0.1);
+          },
+          ui: () => {
+            tone(600, 500, 0.05, "square", 0.12);
+          },
+          gold: () => {
+            for (let i = 0; i < 4; i++)
+              tone(700 + i * 180, 700 + i * 180, 0.09, "square", 0.2, i * 0.07);
+          },
+          deny: () => {
+            tone(180, 120, 0.12, "square", 0.2);
+          },
+          phase: () => {
+            tone(50, 400, 0.8, "sawtooth", 0.4);
+            noiseHit(0.5, 0.4, 800, 0.3);
+          },
+        };
+
+        // ================= RENDERER / SCENE =================
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+        renderer.setSize(innerWidth, innerHeight);
+        renderer.shadowMap.enabled = true;
+        document.body.appendChild(renderer.domElement);
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0a0608);
+        scene.fog = new THREE.FogExp2(0x0a0608, 0.016);
+
+        const camera = new THREE.PerspectiveCamera(
+          60,
+          innerWidth / innerHeight,
+          0.1,
+          220,
+        );
+        const CAM_OFF = new V(0, 26, 14);
+        scene.add(camera);
+
+        const amb = new THREE.AmbientLight(0x402030, 1.2);
+        scene.add(amb);
+        const key = new THREE.DirectionalLight(0xffe8d0, 1.0);
+        key.position.set(10, 30, 10);
+        key.castShadow = true;
+        key.shadow.camera.left = -40;
+        key.shadow.camera.right = 40;
+        key.shadow.camera.top = 40;
+        key.shadow.camera.bottom = -40;
+        scene.add(key);
+        scene.add(key.target);
+        const rim = new THREE.PointLight(0xe01530, 2, 60);
+        rim.position.set(0, 8, 0);
+        scene.add(rim);
+
+        // ================= LEVEL: sectors + corridors + variants + hazards =================
+        const S = 24,
+          CORR_LEN = 26,
+          CORR_W = 9;
+        const SPACING = 2 * S + CORR_LEN;
+        const zc = (i) => -i * SPACING;
+        const WAVES_PER_SECTOR = 2;
+        const isBossSector = (i) => i > 0 && i % 3 === 2; // sectors 3, 6, 9...
+        let maxSector = -1,
+          currentSector = 0;
+        const gates = [],
+          sectorGroups = [],
+          pillarsAll = [],
+          acidPools = [],
+          corridorAmbush = {};
+        const stripColors = [0xe01530, 0x30b8e0, 0xb8ff2e, 0xff8020, 0xc040ff];
+
+        const wallMat = new THREE.MeshStandardMaterial({
+          color: 0x1a1216,
+          roughness: 0.8,
+        });
+        const floorMatBase = new THREE.MeshStandardMaterial({
+          color: 0x241c20,
+          roughness: 0.9,
+        });
+        const pillarGeo = new THREE.CylinderGeometry(1.2, 1.6, 7, 6);
+        const pillarMat = new THREE.MeshStandardMaterial({
+          color: 0x2e2228,
+          roughness: 0.7,
+        });
+        const acidMat = new THREE.MeshBasicMaterial({
+          color: 0x3aff50,
+          transparent: true,
+          opacity: 0.45,
+          depthWrite: false,
+        });
+
+        function makeSign(text, color) {
+          const cv = document.createElement("canvas");
+          cv.width = 512;
+          cv.height = 128;
+          const c = cv.getContext("2d");
+          c.fillStyle = "#0a0608";
+          c.fillRect(0, 0, 512, 128);
+          c.font = "bold 72px Courier New";
+          c.textAlign = "center";
+          c.textBaseline = "middle";
+          c.shadowColor = color;
+          c.shadowBlur = 24;
+          c.fillStyle = color;
+          c.fillText(text, 256, 68);
+          return new THREE.MeshBasicMaterial({
+            map: new THREE.CanvasTexture(cv),
+            transparent: true,
+          });
+        }
+        function addAcidPool(x, z, r, life) {
+          const m = new THREE.Mesh(
+            new THREE.CircleGeometry(r, 18),
+            acidMat.clone(),
+          );
+          m.rotation.x = -Math.PI / 2;
+          m.position.set(x, 0.025, z);
+          scene.add(m);
+          acidPools.push({ m, x, z, r, life, t: Math.random() * 9 });
+        }
+        function buildSector(i) {
+          if (i <= maxSector) return;
+          maxSector = i;
+          const g = new THREE.Group();
+          const c = zc(i);
+          const boss = isBossSector(i);
+          const variant = boss
+            ? -1
+            : i === 0
+              ? 0
+              : ((i * 2654435761) >>> 0) % 3;
+          const fm = floorMatBase.clone();
+          fm.color.offsetHSL((i % 5) * 0.02, 0.02, boss ? -0.03 : 0);
+          const fl = new THREE.Mesh(new THREE.PlaneGeometry(S * 2, S * 2), fm);
+          fl.rotation.x = -Math.PI / 2;
+          fl.position.set(0, 0, c);
+          fl.receiveShadow = true;
+          g.add(fl);
+          const gr = new THREE.GridHelper(
+            S * 2,
+            24,
+            boss ? 0x501018 : 0x3a1018,
+            0x2a1014,
+          );
+          gr.position.set(0, 0.01, c);
+          g.add(gr);
+          const wE = new THREE.Mesh(
+            new THREE.BoxGeometry(1, 6, S * 2 + 1),
+            wallMat,
+          );
+          wE.position.set(S + 0.5, 3, c);
+          g.add(wE);
+          const wW = wE.clone();
+          wW.position.x = -S - 0.5;
+          g.add(wW);
+          const segW = (S * 2 - CORR_W) / 2;
+          function wallPair(zPos) {
+            const a = new THREE.Mesh(
+              new THREE.BoxGeometry(segW, 6, 1),
+              wallMat,
+            );
+            a.position.set(-(CORR_W / 2 + segW / 2), 3, zPos);
+            g.add(a);
+            const b = a.clone();
+            b.position.x = CORR_W / 2 + segW / 2;
+            g.add(b);
+          }
+          if (i === 0) {
+            const wS = new THREE.Mesh(
+              new THREE.BoxGeometry(S * 2 + 2, 6, 1),
+              wallMat,
+            );
+            wS.position.set(0, 3, c + S + 0.5);
+            g.add(wS);
+          } else wallPair(c + S + 0.5);
+          wallPair(c - S - 0.5);
+          const sc = boss ? 0xe01530 : stripColors[i % stripColors.length];
+          const sm = new THREE.MeshBasicMaterial({ color: sc });
+          for (const sx of [-1, 1]) {
+            const strip = new THREE.Mesh(
+              new THREE.BoxGeometry(0.15, 0.25, S * 2),
+              sm,
+            );
+            strip.position.set(sx * (S - 0.1), 5.2, c);
+            g.add(strip);
+          }
+          const sign = new THREE.Mesh(
+            new THREE.PlaneGeometry(10, 2.5),
+            makeSign(
+              boss ? "ABATTOIR" : i === 0 ? "THE PIT" : "SECTOR " + (i + 1),
+              boss ? "#ff2040" : "#ff3050",
+            ),
+          );
+          sign.position.set(0, 4.6, c - S + 0.2);
+          g.add(sign);
+          // ---- layout variants: surprises live here ----
+          if (variant === 0) {
+            // classic pillars
+            [
+              [-12, -12],
+              [12, -12],
+              [-12, 12],
+              [12, 12],
+            ].forEach(([x, z]) => {
+              const p = new THREE.Mesh(pillarGeo, pillarMat);
+              p.position.set(x, 3.5, c + z);
+              p.castShadow = true;
+              g.add(p);
+              pillarsAll.push({ x, z: c + z });
+            });
+          } else if (variant === 1) {
+            // pillar maze
+            for (let px = -2; px <= 2; px++)
+              for (let pz = -1; pz <= 1; pz++) {
+                if ((px + pz) % 2 === 0) continue;
+                const x = px * 8,
+                  z = pz * 10 + 4;
+                const p = new THREE.Mesh(pillarGeo, pillarMat);
+                p.position.set(x, 3.5, c + z);
+                p.castShadow = true;
+                g.add(p);
+                pillarsAll.push({ x, z: c + z });
+              }
+          } else if (variant === 2) {
+            // acid marsh
+            for (let k = 0; k < 4; k++) {
+              addAcidPool(
+                (Math.random() * 2 - 1) * (S - 9),
+                c + (Math.random() * 2 - 1) * (S - 9),
+                2.6 + Math.random() * 1.6,
+                1e9,
+              );
+            }
+            [
+              [-13, 0],
+              [13, 0],
+            ].forEach(([x, z]) => {
+              const p = new THREE.Mesh(pillarGeo, pillarMat);
+              p.position.set(x, 3.5, c + z);
+              p.castShadow = true;
+              g.add(p);
+              pillarsAll.push({ x, z: c + z });
+            });
+          } else {
+            // boss arena: open killing floor with a blood circle
+            const ring = new THREE.Mesh(
+              new THREE.RingGeometry(8, 8.6, 40),
+              new THREE.MeshBasicMaterial({
+                color: 0x6e0512,
+                transparent: true,
+                opacity: 0.7,
+                depthWrite: false,
+              }),
+            );
+            ring.rotation.x = -Math.PI / 2;
+            ring.position.set(0, 0.02, c);
+            g.add(ring);
+          }
+          // ---- corridor north ----
+          const cz = c - S - CORR_LEN / 2;
+          const cfl = new THREE.Mesh(
+            new THREE.PlaneGeometry(CORR_W, CORR_LEN),
+            fm,
+          );
+          cfl.rotation.x = -Math.PI / 2;
+          cfl.position.set(0, 0, cz);
+          cfl.receiveShadow = true;
+          g.add(cfl);
+          for (const sx of [-1, 1]) {
+            const cw = new THREE.Mesh(
+              new THREE.BoxGeometry(1, 6, CORR_LEN),
+              wallMat,
+            );
+            cw.position.set(sx * (CORR_W / 2 + 0.5), 3, cz);
+            g.add(cw);
+            const cs = new THREE.Mesh(
+              new THREE.BoxGeometry(0.12, 0.2, CORR_LEN),
+              new THREE.MeshBasicMaterial({ color: sc }),
+            );
+            cs.position.set(sx * (CORR_W / 2 - 0.05), 4.6, cz);
+            g.add(cs);
+          }
+          const gateMat = new THREE.MeshStandardMaterial({
+            color: 0x55202a,
+            roughness: 0.4,
+            metalness: 0.6,
+            emissive: 0x300810,
+          });
+          const gate = new THREE.Mesh(
+            new THREE.BoxGeometry(CORR_W, 5.6, 0.8),
+            gateMat,
+          );
+          gate.position.set(0, 2.8, c - S - 0.6);
+          g.add(gate);
+          const gLight = new THREE.PointLight(0xff3050, 1.2, 12);
+          gLight.position.set(0, 4, c - S - 2);
+          g.add(gLight);
+          gates[i] = { mesh: gate, open: false, light: gLight };
+          scene.add(g);
+          sectorGroups.push(g);
+        }
+        function openGate(i) {
+          const gt = gates[i];
+          if (!gt || gt.open) return;
+          gt.open = true;
+          gt.light.color.setHex(0xb8ff2e);
+          buildSector(i + 1);
+          sfx.gate();
+          quip("GATE'S OPEN. KEEP WALKING.");
+          document.getElementById("objtext").textContent =
+            "ADVANCE TO SECTOR " + (i + 2);
+          shake = Math.min(shake + 0.3, 0.8);
+        }
+        function walkable(x, z) {
+          for (let i = 0; i <= maxSector; i++) {
+            const c = zc(i);
+            if (
+              x > -S + 1.3 &&
+              x < S - 1.3 &&
+              z > c - S + 1.3 &&
+              z < c + S - 1.3
+            )
+              return true;
+          }
+          for (let i = 0; i < maxSector; i++) {
+            if (!gates[i].open) continue;
+            const top = zc(i) - S,
+              bot = zc(i + 1) + S;
+            if (
+              x > -CORR_W / 2 + 1 &&
+              x < CORR_W / 2 - 1 &&
+              z > bot - 2 &&
+              z < top + 2
+            )
+              return true;
+          }
+          return false;
+        }
+
+        // ================= PLAYER: round yellow sponge =================
+        const player = new THREE.Group();
+        const spongeMat = new THREE.MeshStandardMaterial({
+          color: 0xf5d916,
+          roughness: 0.85,
+          flatShading: true,
+        });
+        const spongeDark = new THREE.MeshStandardMaterial({
+          color: 0xcab00d,
+          roughness: 0.9,
+        });
+        const bootMat = new THREE.MeshStandardMaterial({
+          color: 0x6b4226,
+          roughness: 0.7,
+        });
+        const blackMat = new THREE.MeshBasicMaterial({ color: 0x0a0a0a });
+        const bodyGeo = new THREE.IcosahedronGeometry(1, 2);
+        {
+          const pos = bodyGeo.attributes.position;
+          const v = new V();
+          for (let k = 0; k < pos.count; k++) {
+            v.set(pos.getX(k), pos.getY(k), pos.getZ(k));
+            const b =
+              1 +
+              Math.sin(v.x * 7.3) * 0.045 +
+              Math.sin(v.y * 8.1) * 0.045 +
+              Math.sin(v.z * 6.4) * 0.045;
+            v.normalize().multiplyScalar(b);
+            pos.setXYZ(k, v.x, v.y, v.z);
+          }
+          bodyGeo.computeVertexNormals();
+        }
+        const bodyMesh = new THREE.Mesh(bodyGeo, spongeMat);
+        bodyMesh.position.y = 1.35;
+        bodyMesh.scale.set(1, 0.95, 1);
+        bodyMesh.castShadow = true;
+        player.add(bodyMesh);
+        for (let k = 0; k < 9; k++) {
+          const p = new THREE.Mesh(
+            new THREE.SphereGeometry(0.09 + Math.random() * 0.07, 6, 5),
+            spongeDark,
+          );
+          const a = Math.random() * Math.PI * 2,
+            el = (Math.random() - 0.4) * 1.6;
+          p.position
+            .set(
+              Math.cos(a) * Math.cos(el),
+              Math.sin(el),
+              Math.sin(a) * Math.cos(el),
+            )
+            .multiplyScalar(0.98);
+          p.scale.z = 0.35;
+          p.lookAt(0, 0, 0);
+          bodyMesh.add(p);
+        }
+        for (const sx of [-1, 1]) {
+          const e = new THREE.Mesh(
+            new THREE.SphereGeometry(0.1, 8, 6),
+            blackMat,
+          );
+          e.position.set(sx * 0.3, 0.32, -0.88).setLength(1.0);
+          bodyMesh.add(e);
+        }
+        const mouth = new THREE.Mesh(
+          new THREE.TorusGeometry(0.3, 0.05, 6, 14, Math.PI),
+          blackMat,
+        );
+        mouth.position.set(0, -0.12, -0.94);
+        mouth.rotation.z = Math.PI;
+        mouth.rotation.x = -0.25;
+        bodyMesh.add(mouth);
+        const armGeo = new THREE.CylinderGeometry(0.075, 0.075, 0.85, 6);
+        const arms = {};
+        for (const sx of [-1, 1]) {
+          const arm = new THREE.Group();
+          arm.position.set(sx * 0.95, 1.55, 0);
+          const seg = new THREE.Mesh(armGeo, spongeMat);
+          seg.position.y = -0.4;
+          arm.add(seg);
+          const hand = new THREE.Mesh(
+            new THREE.SphereGeometry(0.14, 6, 5),
+            spongeMat,
+          );
+          hand.position.y = -0.85;
+          arm.add(hand);
+          arm.rotation.z = sx * -0.5;
+          player.add(arm);
+          arms[sx] = arm;
+        }
+        const legGeo = new THREE.CylinderGeometry(0.09, 0.09, 0.55, 6);
+        const legs = {};
+        for (const sx of [-1, 1]) {
+          const leg = new THREE.Group();
+          leg.position.set(sx * 0.32, 0.62, 0);
+          const seg = new THREE.Mesh(legGeo, spongeMat);
+          seg.position.y = -0.27;
+          leg.add(seg);
+          const boot = new THREE.Mesh(
+            new THREE.BoxGeometry(0.3, 0.2, 0.5),
+            bootMat,
+          );
+          boot.position.set(0, -0.55, -0.08);
+          boot.castShadow = true;
+          leg.add(boot);
+          player.add(leg);
+          legs[sx] = leg;
+        }
+        // ================= GUN MODELS (~100 tris each, primitive-built) =================
+        const GUN_COLORS = {
+          shredder: 0xb8ff2e,
+          scatter: 0xffa030,
+          ripper: 0x60ff60,
+          boom: 0xff4010,
+          rail: 0x40c0ff,
+        };
+        const steelMat = new THREE.MeshStandardMaterial({
+          color: 0x2c2c34,
+          roughness: 0.45,
+          metalness: 0.7,
+        });
+        const gunDarkMat = new THREE.MeshStandardMaterial({
+          color: 0x17171c,
+          roughness: 0.6,
+          metalness: 0.4,
+        });
+        const ACCENT = {};
+        for (const k in GUN_COLORS) {
+          ACCENT[k] = new THREE.MeshStandardMaterial({
+            color: GUN_COLORS[k],
+            emissive: GUN_COLORS[k],
+            emissiveIntensity: 0.45,
+            roughness: 0.35,
+          });
+        }
+        function GM(geo, mat, x, y, z, rx = 0, ry = 0, rz = 0) {
+          const m = new THREE.Mesh(geo, mat);
+          m.position.set(x, y, z);
+          m.rotation.set(rx, ry, rz);
+          m.castShadow = true;
+          return m;
+        }
+        const BX = (w, h, d) => new THREE.BoxGeometry(w, h, d);
+        const CY = (r1, r2, h, seg = 8, open = false) =>
+          new THREE.CylinderGeometry(r1, r2, h, seg, 1, open);
+        function buildGun(k) {
+          const g = new THREE.Group();
+          const A = ACCENT[k];
+          if (k === "shredder") {
+            // compact SMG ~104 tris
+            g.add(GM(BX(0.16, 0.2, 0.7), steelMat, 0, 0, -0.1));
+            g.add(
+              GM(CY(0.05, 0.05, 0.5, 8), steelMat, 0, 0.02, -0.65, Math.PI / 2),
+            );
+            g.add(GM(BX(0.05, 0.08, 0.05), A, 0, 0.15, -0.5));
+            g.add(GM(BX(0.12, 0.3, 0.14), gunDarkMat, 0, -0.22, 0.08, 0.25));
+            g.add(GM(BX(0.1, 0.26, 0.1), A, 0, -0.24, -0.18, -0.1));
+            g.add(GM(BX(0.12, 0.12, 0.3), gunDarkMat, 0, 0.02, 0.32));
+            g.add(GM(BX(0.18, 0.04, 0.5), A, 0, 0.12, -0.1));
+          } else if (k === "scatter") {
+            // side-by-side boomstick ~96 tris
+            g.add(
+              GM(
+                CY(0.055, 0.055, 0.9, 7),
+                steelMat,
+                -0.06,
+                0.03,
+                -0.45,
+                Math.PI / 2,
+              ),
+            );
+            g.add(
+              GM(
+                CY(0.055, 0.055, 0.9, 7),
+                steelMat,
+                0.06,
+                0.03,
+                -0.45,
+                Math.PI / 2,
+              ),
+            );
+            g.add(GM(BX(0.22, 0.08, 0.16), A, 0, 0.03, -0.78));
+            g.add(GM(BX(0.2, 0.18, 0.45), gunDarkMat, 0, -0.02, 0.12));
+            g.add(GM(BX(0.14, 0.22, 0.3), gunDarkMat, 0, -0.2, 0.42, 0.5));
+            g.add(GM(BX(0.18, 0.1, 0.3), A, 0, -0.1, -0.32));
+          } else if (k === "ripper") {
+            // spinning minigun ~118 tris
+            const spin = new THREE.Group();
+            spin.name = "spin";
+            for (let i = 0; i < 6; i++) {
+              const a = (i / 6) * Math.PI * 2;
+              spin.add(
+                GM(
+                  CY(0.035, 0.035, 0.85, 5, true),
+                  steelMat,
+                  Math.cos(a) * 0.09,
+                  Math.sin(a) * 0.09,
+                  0,
+                  Math.PI / 2,
+                ),
+              );
+            }
+            spin.position.set(0, 0.02, -0.55);
+            g.add(spin);
+            g.add(GM(CY(0.13, 0.13, 0.25, 7), A, 0, 0.02, -0.12, Math.PI / 2));
+            g.add(GM(BX(0.2, 0.24, 0.45), gunDarkMat, 0, -0.02, 0.18));
+            g.add(GM(BX(0.12, 0.28, 0.13), gunDarkMat, 0, -0.26, 0.28, 0.3));
+          } else if (k === "boom") {
+            // rocket tube ~92 tris
+            g.add(
+              GM(
+                CY(0.11, 0.11, 1.1, 8, true),
+                steelMat,
+                0,
+                0.05,
+                -0.1,
+                Math.PI / 2,
+              ),
+            );
+            g.add(
+              GM(
+                CY(0.13, 0.11, 0.18, 8),
+                gunDarkMat,
+                0,
+                0.05,
+                -0.68,
+                Math.PI / 2,
+              ),
+            );
+            g.add(
+              GM(
+                new THREE.ConeGeometry(0.08, 0.24, 7),
+                A,
+                0,
+                0.05,
+                -0.76,
+                -Math.PI / 2,
+              ),
+            );
+            g.add(GM(BX(0.06, 0.12, 0.12), A, 0, 0.21, 0.05));
+            g.add(GM(BX(0.12, 0.26, 0.13), gunDarkMat, 0, -0.18, 0.12, 0.25));
+            g.add(GM(BX(0.1, 0.16, 0.2), gunDarkMat, 0, -0.06, 0.45));
+          } else {
+            // railgun ~110 tris
+            g.add(GM(BX(0.1, 0.16, 1.2), steelMat, 0, 0, -0.15));
+            g.add(GM(BX(0.03, 0.05, 1.0), A, -0.09, 0.05, -0.2));
+            g.add(GM(BX(0.03, 0.05, 1.0), A, 0.09, 0.05, -0.2));
+            for (let i = 0; i < 3; i++)
+              g.add(
+                GM(
+                  CY(0.14, 0.14, 0.07, 6, true),
+                  A,
+                  0,
+                  0,
+                  -0.55 + i * 0.3,
+                  Math.PI / 2,
+                ),
+              );
+            g.add(GM(BX(0.14, 0.2, 0.3), gunDarkMat, 0, -0.05, 0.38));
+            g.add(GM(BX(0.11, 0.26, 0.12), gunDarkMat, 0, -0.24, 0.18, 0.25));
+            g.add(GM(BX(0.05, 0.09, 0.05), gunDarkMat, 0, 0.14, 0.05));
+          }
+          return g;
+        }
+        const GUN_PROTOS = {};
+        for (const k in GUN_COLORS) GUN_PROTOS[k] = buildGun(k);
+        // hand mount: setWeapon swaps the model in here
+        const gunMount = new THREE.Group();
+        gunMount.position.set(0.95, 0.85, -0.35);
+        player.add(gunMount);
+        let heldModel = null,
+          heldSpin = null,
+          vmModel = null,
+          vmSpin = null;
+        scene.add(player);
+        const muzzle = new THREE.PointLight(0xffcc66, 0, 8);
+        muzzle.position.y = 1.2;
+        player.add(muzzle);
+        let walkPhase = 0;
+
+        // ================= PERSPECTIVE SYSTEM =================
+        const playerParts = [
+          bodyMesh,
+          arms[1],
+          arms[-1],
+          legs[1],
+          legs[-1],
+          gunMount,
+        ];
+        const vmMount = new THREE.Group();
+        vmMount.position.set(0.38, -0.32, -0.75);
+        vmMount.rotation.y = 0.06;
+        vmMount.visible = false;
+        camera.add(vmMount);
+        function mountGun() {
+          if (heldModel) gunMount.remove(heldModel);
+          if (vmModel) vmMount.remove(vmModel);
+          heldModel = GUN_PROTOS[curWeapon].clone();
+          heldModel.scale.setScalar(0.85);
+          gunMount.add(heldModel);
+          heldSpin = heldModel.getObjectByName("spin");
+          vmModel = GUN_PROTOS[curWeapon].clone();
+          vmModel.scale.setScalar(0.62);
+          vmMount.add(vmModel);
+          vmSpin = vmModel.getObjectByName("spin");
+        }
+        let mode = "top",
+          yaw = 0,
+          pitch = 0,
+          pointerLocked = false,
+          movingFlag = false;
+        let transitioning = false,
+          transT = 0;
+        const TRANS_DUR = 1.5;
+        const transFrom = { pos: new V(), quat: new THREE.Quaternion() };
+        const tmpQ = new THREE.Quaternion();
+        const easeSwoop = (k) =>
+          k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+        function tryLock() {
+          try {
+            const p =
+              document.body.requestPointerLock &&
+              document.body.requestPointerLock();
+            if (p && p.catch) p.catch(() => {});
+          } catch (err) {}
+        }
+        function setPerspective(m, force) {
+          if (mode === m && !force) return;
+          const fps = m === "fps";
+          transFrom.pos.copy(camera.position);
+          transFrom.quat.copy(camera.quaternion);
+          transitioning = !force;
+          transT = 0;
+          mode = m;
+          document.getElementById("crosshair").classList.toggle("center", fps);
+          if (fps) {
+            yaw = player.rotation.y;
+            pitch = 0;
+            quip("GOING IN CLOSE.");
+            tryLock();
+          } else {
+            for (const p of playerParts) p.visible = true;
+            vmMount.visible = false;
+            if (document.exitPointerLock) document.exitPointerLock();
+            if (playing) quip("EYES IN THE SKY.");
+          }
+          if (transitioning) {
+            for (const e of enemies)
+              e.stagger = Math.max(e.stagger, TRANS_DUR * 0.8);
+            shake = 0;
+          } else if (fps) {
+            for (const p of playerParts) p.visible = false;
+            vmMount.visible = true;
+          }
+        }
+        document.addEventListener("pointerlockchange", () => {
+          pointerLocked = document.pointerLockElement === document.body;
+        });
+
+        // ================= SKILL TREE =================
+        const SKILLS = {
+          c1: {
+            branch: "CARNAGE",
+            tier: 1,
+            name: "SHARPER TEETH",
+            desc: "+30% damage, all weapons",
+            cost: 1,
+            req: null,
+            apply: (s) => (s.dmgMul *= 1.3),
+          },
+          c2: {
+            branch: "CARNAGE",
+            tier: 2,
+            name: "TRIGGER DEMON",
+            desc: "+25% fire rate",
+            cost: 2,
+            req: "c1",
+            apply: (s) => (s.fireMul *= 1.25),
+          },
+          c3: {
+            branch: "CARNAGE",
+            tier: 3,
+            name: "BLOOD DRINKER",
+            desc: "kills heal 2 HP",
+            cost: 3,
+            req: "c2",
+            apply: (s) => (s.vamp = 2),
+          },
+          s1: {
+            branch: "SURVIVAL",
+            tier: 1,
+            name: "THICK SPONGE",
+            desc: "+40 max HP",
+            cost: 1,
+            req: null,
+            apply: (s) => {
+              s.maxHp += 40;
+              hp += 40;
+            },
+          },
+          s2: {
+            branch: "SURVIVAL",
+            tier: 2,
+            name: "GREASED BOOTS",
+            desc: "+20% move speed",
+            cost: 2,
+            req: "s1",
+            apply: (s) => (s.speedMul *= 1.2),
+          },
+          s3: {
+            branch: "SURVIVAL",
+            tier: 3,
+            name: "GRISTLE ARMOR",
+            desc: "-30% damage taken",
+            cost: 3,
+            req: "s2",
+            apply: (s) => (s.armor *= 0.7),
+          },
+          h1: {
+            branch: "HAVOC",
+            tier: 1,
+            name: "RAGE GLAND",
+            desc: "nova charges 60% faster",
+            cost: 1,
+            req: null,
+            apply: (s) => (s.novaMul *= 1.6),
+          },
+          h2: {
+            branch: "HAVOC",
+            tier: 2,
+            name: "DEEP POCKETS",
+            desc: "+60% ammo in pickups",
+            cost: 2,
+            req: "h1",
+            apply: (s) => (s.ammoMul *= 1.6),
+          },
+          h3: {
+            branch: "HAVOC",
+            tier: 3,
+            name: "CHAIN REACTION",
+            desc: "+50% explosion radius, 2x weapon drops",
+            cost: 3,
+            req: "h2",
+            apply: (s) => {
+              s.boomMul *= 1.5;
+              s.dropMul *= 2;
+            },
+          },
+        };
+        let stats,
+          bought,
+          skillPts = 0,
+          treeOpen = false;
+        function resetStats() {
+          stats = {
+            dmgMul: 1,
+            fireMul: 1,
+            vamp: 0,
+            maxHp: 100,
+            speedMul: 1,
+            armor: 1,
+            novaMul: 1,
+            ammoMul: 1,
+            dropMul: 1,
+            boomMul: 1,
+          };
+          bought = {};
+          skillPts = 0;
+        }
+        function buildTreeUI() {
+          const grid = document.getElementById("treeGrid");
+          grid.innerHTML = "";
+          for (const br of ["CARNAGE", "SURVIVAL", "HAVOC"]) {
+            const col = document.createElement("div");
+            const branch = document.createElement("div");
+            branch.className = "branch";
+            for (const id of Object.keys(SKILLS)) {
+              const sk = SKILLS[id];
+              if (sk.branch !== br) continue;
+              const n = document.createElement("div");
+              n.className = "node";
+              n.dataset.id = id;
+              n.innerHTML =
+                '<div class="n-name">' +
+                sk.name +
+                '</div><div class="n-desc">' +
+                sk.desc +
+                '</div><div class="n-cost">' +
+                sk.cost +
+                " SP</div>";
+              n.addEventListener("click", () => buySkill(id));
+              branch.appendChild(n);
+            }
+            const title = document.createElement("div");
+            title.className = "branch-title";
+            title.textContent = br;
+            col.appendChild(title);
+            col.appendChild(branch);
+            grid.appendChild(col);
+          }
+          refreshTreeUI();
+        }
+        function refreshTreeUI() {
+          document.getElementById("treeSp").textContent = skillPts;
+          document.getElementById("sp").textContent = skillPts;
+          document.querySelectorAll(".node").forEach((n) => {
+            const id = n.dataset.id,
+              sk = SKILLS[id];
+            n.classList.toggle("bought", !!bought[id]);
+            const locked =
+              !bought[id] &&
+              ((sk.req && !bought[sk.req]) || skillPts < sk.cost);
+            n.classList.toggle("locked", locked);
+            if (bought[id]) n.querySelector(".n-cost").textContent = "ACQUIRED";
+          });
+        }
+        function buySkill(id) {
+          const sk = SKILLS[id];
+          if (bought[id] || (sk.req && !bought[sk.req]) || skillPts < sk.cost) {
+            sfx.deny();
+            return;
+          }
+          skillPts -= sk.cost;
+          bought[id] = true;
+          sk.apply(stats);
+          sfx.buy();
+          updateHud();
+          refreshTreeUI();
+        }
+        function toggleTree(open) {
+          if (cut.active) return;
+          treeOpen = open === undefined ? !treeOpen : open;
+          document
+            .getElementById("skilltree")
+            .classList.toggle("open", treeOpen);
+          if (treeOpen) {
+            refreshTreeUI();
+            sfx.ui();
+          }
+        }
+        function awardSP(n, why) {
+          skillPts += n;
+          document.getElementById("sp").textContent = skillPts;
+          quip(
+            "+" +
+              n +
+              " SKILL " +
+              (n > 1 ? "POINTS" : "POINT") +
+              (why ? " \u2014 " + why : "") +
+              " [T]",
+          );
+        }
+        document
+          .getElementById("treeClose")
+          .addEventListener("click", () => toggleTree(false));
+
+        // ================= WEAPONS / QUIPS =================
+        const WEAPONS = {
+          shredder: {
+            name: "SHREDDER",
+            cd: 0.085,
+            dmg: 1,
+            spread: 0.05,
+            pellets: 1,
+            speed: 42,
+            max: Infinity,
+            color: 0xfff0a0,
+            gcol: 0xb8ff2e,
+          },
+          scatter: {
+            name: "SCATTERGUN",
+            cd: 0.5,
+            dmg: 1,
+            spread: 0.42,
+            pellets: 9,
+            speed: 36,
+            max: 28,
+            color: 0xffa030,
+            gcol: 0xffa030,
+          },
+          ripper: {
+            name: "RIPPER",
+            cd: 0.04,
+            dmg: 1,
+            spread: 0.1,
+            pellets: 1,
+            speed: 50,
+            max: 180,
+            color: 0xb8ff2e,
+            gcol: 0x60ff60,
+          },
+          boom: {
+            name: "BOOMSTICK",
+            cd: 0.75,
+            dmg: 3,
+            spread: 0.02,
+            pellets: 1,
+            speed: 24,
+            max: 14,
+            color: 0xff4010,
+            gcol: 0xff4010,
+            explosive: true,
+          },
+          rail: {
+            name: "RAILGUN",
+            cd: 0.65,
+            dmg: 8,
+            spread: 0,
+            pellets: 1,
+            speed: 0,
+            max: 12,
+            color: 0x40c0ff,
+            gcol: 0x40c0ff,
+            rail: true,
+          },
+        };
+        let curWeapon = "shredder",
+          ammo = Infinity;
+        function setWeapon(k) {
+          curWeapon = k;
+          const m = WEAPONS[k].max;
+          ammo = m === Infinity ? Infinity : Math.round(m * stats.ammoMul);
+          mountGun();
+          document.querySelector("#weapon .wname").textContent =
+            WEAPONS[k].name;
+          updateAmmoHud();
+        }
+        function updateAmmoHud() {
+          document.querySelector("#weapon .wammo").textContent =
+            ammo === Infinity ? "\u221e" : ammo + " RNDS";
+        }
+        const QUIPS = {
+          multikill: [
+            "GROUND BEEF. EXTRA GROUND.",
+            "SOMEBODY CALL A MOP.",
+            "REDECORATING IN RED.",
+            "ANATOMY LESSON'S FREE.",
+            "I CHARGE BY THE LIMB.",
+            "NICE FACE. WAS.",
+            "THE PIT EATS GOOD TONIGHT.",
+          ],
+          nova: [
+            "EVERYBODY OUT OF THE GENE POOL.",
+            "BOOM GOES THE NEIGHBORHOOD.",
+            "RAINING MEAT, HALLELUJAH.",
+          ],
+          wave: [
+            "FRESH MEAT INBOUND.",
+            "THEY KEEP COMING. GOOD.",
+            "DINNER BELL, UGLIES.",
+            "MORE PAINT FOR THE FLOOR.",
+          ],
+          sector: [
+            "DEEPER WE GO.",
+            "NEW FLOOR. SAME MOP.",
+            "SMELLS WORSE DOWN HERE. PERFECT.",
+          ],
+          pickup: {
+            scatter: "SPREAD THE LOVE.",
+            ripper: "TIME TO MAKE CONFETTI.",
+            boom: "KNOCK KNOCK.",
+            rail: "ONE LINE. NO WAITING.",
+          },
+          hurt: ["THAT ALL YOU GOT?", "I'VE HAD WORSE SHAVES."],
+          boss: ["BIG ONES SPLATTER BIGGER.", "YOU CALL THAT A FINAL FORM?"],
+        };
+        let quipTimer = 0;
+        function quip(text) {
+          const q = document.getElementById("quip");
+          q.textContent = text;
+          q.style.opacity = 1;
+          quipTimer = 2.4;
+        }
+        const pick = (a) => a[Math.floor(Math.random() * a.length)];
+
+        // ================= STATE =================
+        let playing = false,
+          score = 0,
+          kills = 0,
+          totalWave = 0,
+          sectorWave = 0,
+          hp = 100,
+          novaMeter = 0;
+        let combo = 0,
+          comboTimer = 0,
+          hurtQuipCd = 0,
+          pendingSpawns = 0,
+          gateOpenedFor = -1,
+          hurtSfxCd = 0;
+        const keys = {};
+        const mouse = new THREE.Vector2();
+        let mouseDown = false,
+          fireCd = 0,
+          shake = 0,
+          hitFlash = 0;
+        const raycaster = new THREE.Raycaster();
+        const groundPlane = new THREE.Plane(new V(0, 1, 0), -1);
+        const aimPoint = new V();
+
+        // ================= POOLS: blood / decals / gibs / bullets / beams =================
+        const PCOUNT = 1400;
+        const pGeo = new THREE.BufferGeometry();
+        const pPos = new Float32Array(PCOUNT * 3);
+        pGeo.setAttribute("position", new THREE.BufferAttribute(pPos, 3));
+        const pMat = new THREE.PointsMaterial({
+          color: 0xc00a22,
+          size: 0.32,
+          sizeAttenuation: true,
+        });
+        const points = new THREE.Points(pGeo, pMat);
+        points.frustumCulled = false;
+        scene.add(points);
+        const pVel = new Float32Array(PCOUNT * 3);
+        const pLife = new Float32Array(PCOUNT);
+        let pHead = 0;
+        function spawnBlood(x, y, z, n, force) {
+          for (let i = 0; i < n; i++) {
+            const idx = pHead;
+            pHead = (pHead + 1) % PCOUNT;
+            pPos[idx * 3] = x;
+            pPos[idx * 3 + 1] = y;
+            pPos[idx * 3 + 2] = z;
+            const a = Math.random() * Math.PI * 2,
+              up = Math.random() * force * 1.4 + 2;
+            const sp = Math.random() * force + 1;
+            pVel[idx * 3] = Math.cos(a) * sp;
+            pVel[idx * 3 + 1] = up;
+            pVel[idx * 3 + 2] = Math.sin(a) * sp;
+            pLife[idx] = 1.2 + Math.random() * 0.8;
+          }
+        }
+        const MAXD = 240;
+        const decals = [];
+        let dHead = 0;
+        const splatGeo = new THREE.CircleGeometry(1, 8);
+        const splatMats = [0x6e0512, 0x8a0716, 0x550410].map(
+          (c) =>
+            new THREE.MeshBasicMaterial({
+              color: c,
+              transparent: true,
+              opacity: 0.85,
+              depthWrite: false,
+            }),
+        );
+        for (let i = 0; i < MAXD; i++) {
+          const m = new THREE.Mesh(splatGeo, splatMats[i % 3]);
+          m.rotation.x = -Math.PI / 2;
+          m.visible = false;
+          m.position.y = 0.02 + (i % 10) * 0.001;
+          scene.add(m);
+          decals.push(m);
+        }
+        function splat(x, z, s) {
+          const m = decals[dHead];
+          dHead = (dHead + 1) % MAXD;
+          m.visible = true;
+          m.position.x = x;
+          m.position.z = z;
+          m.scale.setScalar(s * (0.6 + Math.random() * 0.8));
+          m.rotation.z = Math.random() * Math.PI * 2;
+        }
+        const scorchMat = new THREE.MeshBasicMaterial({
+          color: 0x080404,
+          transparent: true,
+          opacity: 0.8,
+          depthWrite: false,
+        });
+        const scorches = [];
+        let sHead = 0;
+        for (let i = 0; i < 30; i++) {
+          const m = new THREE.Mesh(splatGeo, scorchMat);
+          m.rotation.x = -Math.PI / 2;
+          m.visible = false;
+          m.position.y = 0.015;
+          scene.add(m);
+          scorches.push(m);
+        }
+        function scorch(x, z, s) {
+          const m = scorches[sHead];
+          sHead = (sHead + 1) % 30;
+          m.visible = true;
+          m.position.x = x;
+          m.position.z = z;
+          m.scale.setScalar(s);
+        }
+        const MAXG = 110;
+        const gibs = [];
+        const gibGeos = [
+          new THREE.BoxGeometry(0.4, 0.3, 0.5),
+          new THREE.SphereGeometry(0.28, 5, 4),
+          new THREE.TetrahedronGeometry(0.38),
+        ];
+        const gibMats = [
+          new THREE.MeshStandardMaterial({ color: 0x8a0716, roughness: 0.5 }),
+          new THREE.MeshStandardMaterial({ color: 0xa1071c, roughness: 0.5 }),
+          new THREE.MeshStandardMaterial({ color: 0xd8cfc0, roughness: 0.6 }),
+        ];
+        for (let i = 0; i < MAXG; i++) {
+          const g = new THREE.Mesh(gibGeos[i % 3], gibMats[i % 3]);
+          g.visible = false;
+          g.castShadow = true;
+          scene.add(g);
+          gibs.push({ m: g, v: new V(), av: new V(), life: 0 });
+        }
+        let gHead = 0;
+        function spawnGibs(x, y, z, n, big) {
+          for (let i = 0; i < n; i++) {
+            const g = gibs[gHead];
+            gHead = (gHead + 1) % MAXG;
+            g.m.visible = true;
+            g.m.position.set(x, y, z);
+            g.m.scale.setScalar(big ? 1.8 : 1);
+            const a = Math.random() * Math.PI * 2;
+            g.v.set(
+              Math.cos(a) * (2 + Math.random() * 7),
+              4 + Math.random() * 8,
+              Math.sin(a) * (2 + Math.random() * 7),
+            );
+            g.av.set(
+              Math.random() * 10 - 5,
+              Math.random() * 10 - 5,
+              Math.random() * 10 - 5,
+            );
+            g.life = 2.5 + Math.random();
+          }
+        }
+        const bullets = [];
+        const MAXB = 80;
+        const bGeo = new THREE.SphereGeometry(0.14, 6, 4);
+        for (let i = 0; i < MAXB; i++) {
+          const m = new THREE.Mesh(
+            bGeo,
+            new THREE.MeshBasicMaterial({ color: 0xfff0a0 }),
+          );
+          m.visible = false;
+          scene.add(m);
+          bullets.push({
+            m,
+            v: new V(),
+            alive: false,
+            dmg: 1,
+            explosive: false,
+            life: 0,
+          });
+        }
+        let bHead = 0;
+        // enemy projectiles (boss acid)
+        const eBullets = [];
+        for (let i = 0; i < 24; i++) {
+          const m = new THREE.Mesh(
+            new THREE.SphereGeometry(0.22, 6, 5),
+            new THREE.MeshBasicMaterial({ color: 0x3aff50 }),
+          );
+          m.visible = false;
+          scene.add(m);
+          eBullets.push({ m, v: new V(), alive: false, life: 0 });
+        }
+        let ebHead = 0;
+        function spitAcid(from, to, speed) {
+          const b = eBullets[ebHead];
+          ebHead = (ebHead + 1) % 24;
+          b.alive = true;
+          b.m.visible = true;
+          b.m.position.copy(from);
+          b.v.subVectors(to, from).setY(0).normalize().multiplyScalar(speed);
+          b.life = 2.2;
+          sfx.spit();
+        }
+        const beams = [];
+        function railBeamFx(from, to, color) {
+          const g = new THREE.BufferGeometry().setFromPoints([
+            from.clone(),
+            to.clone(),
+          ]);
+          const l = new THREE.Line(
+            g,
+            new THREE.LineBasicMaterial({
+              color,
+              transparent: true,
+              opacity: 1,
+            }),
+          );
+          scene.add(l);
+          beams.push({ l, life: 0.3 });
+          const dir = new V().subVectors(to, from);
+          const len = dir.length();
+          const core = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.07, 0.07, len, 5),
+            new THREE.MeshBasicMaterial({
+              color,
+              transparent: true,
+              opacity: 0.9,
+            }),
+          );
+          core.position.copy(from).addScaledVector(dir, 0.5);
+          core.lookAt(to);
+          core.rotateX(Math.PI / 2);
+          scene.add(core);
+          beams.push({ l: core, life: 0.22 });
+        }
+        // telegraph rings (boss + events)
+        const telegraphs = [];
+        const ringGeo = new THREE.RingGeometry(0.92, 1, 36);
+        function addTelegraph(x, z, radius, dur, onDone, color = 0xff2030) {
+          const m = new THREE.Mesh(
+            ringGeo,
+            new THREE.MeshBasicMaterial({
+              color,
+              transparent: true,
+              opacity: 0.9,
+              depthWrite: false,
+              side: THREE.DoubleSide,
+            }),
+          );
+          m.rotation.x = -Math.PI / 2;
+          m.position.set(x, 0.04, z);
+          scene.add(m);
+          telegraphs.push({ m, t: 0, dur, r: radius, onDone, x, z });
+        }
+        const boomLights = [];
+        for (let i = 0; i < 5; i++) {
+          const L = new THREE.PointLight(0xff7020, 0, 18);
+          scene.add(L);
+          boomLights.push({ L, life: 0 });
+        }
+        let blHead = 0;
+        function explode(x, z, radius, dmg, friendly) {
+          const bl = boomLights[blHead];
+          blHead = (blHead + 1) % 5;
+          bl.L.position.set(x, 2, z);
+          bl.L.intensity = reduceFx ? 3 : 9;
+          bl.life = 0.35;
+          spawnBlood(x, 1.4, z, reduceFx ? 30 : 90, 7);
+          spawnGibs(x, 1.4, z, reduceFx ? 4 : 8);
+          scorch(x, z, radius * 0.8);
+          shake = Math.min(shake + 0.7, 1.3);
+          sfx.boom();
+          for (let i = enemies.length - 1; i >= 0; i--) {
+            const e = enemies[i];
+            const d = Math.hypot(e.grp.position.x - x, e.grp.position.z - z);
+            if (d < radius) {
+              e.hp -= dmg;
+              e.stagger = 0.5;
+              e.hurt = 0.3;
+              if (e.hp <= 0) killEnemy(e, i);
+            }
+          }
+          if (boss && !boss.dead) {
+            const d = Math.hypot(
+              boss.grp.position.x - x,
+              boss.grp.position.z - z,
+            );
+            if (d < radius + 3) damageBoss(dmg);
+          }
+          for (const b of barrels) {
+            if (!b.alive) continue;
+            if (Math.hypot(b.m.position.x - x, b.m.position.z - z) < radius) {
+              detonateBarrel(b);
+            }
+          }
+          if (!friendly) {
+            const pd = Math.hypot(player.position.x - x, player.position.z - z);
+            if (pd < radius * 0.85) {
+              damagePlayer(20);
+            }
+          }
+        }
+        const barrelGeo = new THREE.CylinderGeometry(0.8, 0.8, 1.6, 10);
+        const barrelMatBase = new THREE.MeshStandardMaterial({
+          color: 0x9a1812,
+          roughness: 0.5,
+          emissive: 0x200400,
+        });
+        const barrels = [];
+        function placeBarrel(x, z) {
+          const b = new THREE.Mesh(barrelGeo, barrelMatBase.clone());
+          b.position.set(x, 0.8, z);
+          b.castShadow = true;
+          scene.add(b);
+          barrels.push({ m: b, alive: true });
+        }
+        function detonateBarrel(b) {
+          if (!b.alive) return;
+          b.alive = false;
+          b.m.visible = false;
+          setTimeout(
+            () => explode(b.m.position.x, b.m.position.z, 5.5, 6, false),
+            40,
+          );
+        }
+        const pickups = [];
+        function dropPickup(x, z, forceKey) {
+          const ks = ["scatter", "ripper", "boom", "rail"];
+          const k = forceKey || ks[Math.floor(Math.random() * ks.length)];
+          const w = WEAPONS[k];
+          const m = GUN_PROTOS[k].clone();
+          m.scale.setScalar(1.25);
+          m.rotation.z = 0.25; // jaunty display angle
+          m.position.set(x, 0.9, z);
+          scene.add(m);
+          const L = new THREE.PointLight(w.gcol, 1.2, 7);
+          L.position.set(x, 1.5, z);
+          scene.add(L);
+          pickups.push({ m, L, k, t: Math.random() * 10, life: 20 });
+        }
+
+        // ================= ENEMIES =================
+        const enemies = [];
+        function lumpify(geo, amt, seed) {
+          const pos = geo.attributes.position;
+          const v = new V();
+          for (let i = 0; i < pos.count; i++) {
+            v.set(pos.getX(i), pos.getY(i), pos.getZ(i));
+            const bump =
+              1 +
+              Math.sin(v.x * 5.1 + seed) * amt * 0.3 +
+              Math.sin(v.y * 4.3 + seed * 1.7) * amt * 0.26 +
+              Math.sin(v.z * 6.7 + seed * 2.3) * amt * 0.22 +
+              Math.sin((v.x + v.y + v.z) * 9.1 + seed) * amt * 0.14;
+            v.normalize().multiplyScalar(bump);
+            pos.setXYZ(i, v.x, v.y, v.z);
+          }
+          geo.computeVertexNormals();
+          return geo;
+        }
+        const gruntGeos = [],
+          bruteGeos = [];
+        for (let i = 0; i < 4; i++) {
+          gruntGeos.push(
+            lumpify(new THREE.IcosahedronGeometry(1, 2), 0.38, i * 3.7 + 1),
+          );
+          bruteGeos.push(
+            lumpify(new THREE.IcosahedronGeometry(1, 2), 0.55, i * 5.1 + 9),
+          );
+        }
+        const fleshPalette = [0x6a1430, 0x7a1028, 0x58102e, 0x801838];
+        const boneMat = new THREE.MeshStandardMaterial({
+          color: 0xd8cfc0,
+          roughness: 0.6,
+        });
+        const woundMat = new THREE.MeshStandardMaterial({
+          color: 0x30040c,
+          roughness: 0.3,
+          emissive: 0x500412,
+        });
+        const eyeMatShared = new THREE.MeshBasicMaterial({ color: 0xff2030 });
+        const goldMat = new THREE.MeshStandardMaterial({
+          color: 0xffd24a,
+          roughness: 0.3,
+          metalness: 0.6,
+          emissive: 0x4a3500,
+        });
+        const toothGeo = new THREE.ConeGeometry(0.06, 0.22, 4);
+        function dressFlesh(body, big) {
+          const nSpikes = big ? 10 : 6;
+          for (let i = 0; i < nSpikes; i++) {
+            const s = new THREE.Mesh(
+              new THREE.ConeGeometry(
+                0.1 + Math.random() * 0.1,
+                0.5 + Math.random() * 0.8,
+                5,
+              ),
+              boneMat,
+            );
+            const a = Math.random() * Math.PI * 2,
+              el = Math.random() * Math.PI * 0.55;
+            const dir = new V(
+              Math.cos(a) * Math.cos(el),
+              Math.sin(el),
+              Math.sin(a) * Math.cos(el),
+            );
+            s.position.copy(dir).multiplyScalar(0.9);
+            s.quaternion.setFromUnitVectors(
+              new V(0, 1, 0),
+              dir.clone().normalize(),
+            );
+            body.add(s);
+          }
+          const wound = new THREE.Mesh(
+            new THREE.SphereGeometry(big ? 0.5 : 0.38, 8, 6),
+            woundMat,
+          );
+          const wa = Math.random() * Math.PI * 2;
+          wound.position.set(Math.cos(wa) * 0.7, 0.15, Math.sin(wa) * 0.7);
+          body.add(wound);
+          const nEyes = 3 + Math.floor(Math.random() * 3);
+          for (let i = 0; i < nEyes; i++) {
+            const e = new THREE.Mesh(
+              new THREE.SphereGeometry(0.06 + Math.random() * 0.11, 6, 5),
+              eyeMatShared,
+            );
+            e.position
+              .set(
+                (Math.random() - 0.5) * 0.8,
+                0.1 + Math.random() * 0.5,
+                -0.6 - Math.random() * 0.3,
+              )
+              .setLength(0.92 + Math.random() * 0.12);
+            e.position.z = -Math.abs(e.position.z);
+            body.add(e);
+          }
+          for (let i = 0; i < (big ? 8 : 5); i++) {
+            const t = new THREE.Mesh(toothGeo, boneMat);
+            t.position.set(
+              (i / (big ? 7 : 4) - 0.5) * 0.7,
+              -0.28 + Math.random() * 0.06,
+              -0.85,
+            );
+            t.position.setLength(0.95);
+            t.position.z = -Math.abs(t.position.z);
+            t.rotation.x = Math.PI;
+            t.rotation.z = (Math.random() - 0.5) * 0.5;
+            body.add(t);
+          }
+        }
+        function makeEnemy(type) {
+          const grp = new THREE.Group();
+          const big = type === "brute",
+            gold = type === "gold";
+          const geo = (big ? bruteGeos : gruntGeos)[
+            Math.floor(Math.random() * 4)
+          ];
+          const mat = gold
+            ? goldMat.clone()
+            : new THREE.MeshStandardMaterial({
+                color:
+                  fleshPalette[Math.floor(Math.random() * fleshPalette.length)],
+                roughness: 0.55,
+                emissive: 0x200008,
+                flatShading: true,
+              });
+          const body = new THREE.Mesh(geo, mat);
+          body.castShadow = true;
+          body.position.y = big ? 1.7 : 1;
+          const baseScale = big ? 1.8 : 1.05;
+          body.scale.setScalar(baseScale);
+          grp.add(body);
+          dressFlesh(body, big);
+          scene.add(grp);
+          return {
+            grp,
+            body,
+            mat,
+            baseScale,
+            hp: big ? 9 : 3,
+            speed: big ? 3.2 : gold ? 7.5 : 5 + Math.random() * 2.5,
+            big,
+            gold,
+            dead: false,
+            stagger: 0,
+            hurt: 0,
+            t: Math.random() * 10,
+            life: gold ? 9 : Infinity,
+          };
+        }
+
+        // ================= BOSS =================
+        let boss = null,
+          bossCount = 0;
+        const BOSS_NAMES = [
+          ["THE BUTCHER PRIME", "DEVOURER OF SECTORS"],
+          ["GRISTLE KING", "CROWNED IN BONE"],
+          ["THE WET CATHEDRAL", "IT SHOULD NOT WALK"],
+        ];
+        function spawnBoss() {
+          const c = zc(currentSector);
+          const grp = new THREE.Group();
+          const geo = lumpify(
+            new THREE.IcosahedronGeometry(1, 3),
+            0.5,
+            bossCount * 7 + 3,
+          );
+          const mat = new THREE.MeshStandardMaterial({
+            color: 0x701030,
+            roughness: 0.5,
+            emissive: 0x300010,
+            flatShading: true,
+          });
+          const body = new THREE.Mesh(geo, mat);
+          body.castShadow = true;
+          body.position.y = 4.4;
+          body.scale.setScalar(4.2);
+          grp.add(body);
+          dressFlesh(body, true);
+          // crown of bone
+          for (let i = 0; i < 7; i++) {
+            const a = (i / 7) * Math.PI * 2;
+            const h = new THREE.Mesh(
+              new THREE.ConeGeometry(0.14, 1.1, 5),
+              boneMat,
+            );
+            h.position.set(Math.cos(a) * 0.55, 0.85, Math.sin(a) * 0.55);
+            h.rotation.x = Math.cos(a) * 0.5;
+            h.rotation.z = -Math.sin(a) * 0.5;
+            body.add(h);
+          }
+          const core = new THREE.Mesh(
+            new THREE.SphereGeometry(0.34, 10, 8),
+            new THREE.MeshBasicMaterial({ color: 0xff2040 }),
+          );
+          core.position.set(0, 0, -0.95);
+          body.add(core);
+          const glow = new THREE.PointLight(0xff2040, 2.5, 30);
+          glow.position.y = 5;
+          grp.add(glow);
+          grp.position.set(0, 0, c - 8);
+          scene.add(grp);
+          const nm = BOSS_NAMES[bossCount % BOSS_NAMES.length];
+          const maxHp = 300 + bossCount * 160;
+          boss = {
+            grp,
+            body,
+            mat,
+            core,
+            glow,
+            hp: maxHp,
+            maxHp,
+            phase: 1,
+            dead: false,
+            t: 0,
+            atkCd: 2.5,
+            charging: 0,
+            chargeDir: new V(),
+            hurt: 0,
+            name: nm[0],
+            sub: nm[1],
+            moveSpeed: 2.2,
+            baseY: 0,
+          };
+          bossCount++;
+          document.getElementById("bossname").textContent = nm[0];
+          document.getElementById("bossbar").style.display = "block";
+          document.getElementById("bossfill").style.width = "100%";
+          document.getElementById("objtext").textContent = "SLAY " + nm[0];
+          // ---- intro cutscene: orbit the monster ----
+          startCutscene(
+            3.2,
+            (k, dtc) => {
+              const bp = boss.grp.position;
+              const a = k * Math.PI * 1.6 - 0.6;
+              camera.position.set(
+                bp.x + Math.cos(a) * 13,
+                4 + k * 5,
+                bp.z + Math.sin(a) * 13,
+              );
+              camera.lookAt(bp.x, 4, bp.z);
+              camera.fov = 52 + Math.sin(k * Math.PI) * 10;
+              camera.updateProjectionMatrix();
+              boss.body.rotation.y += dtc * 0.5;
+              if (k > 0.25 && k < 0.3) showBossTitle(nm[0], nm[1]);
+            },
+            () => {
+              hideBossTitle();
+              camera.fov = 60;
+              camera.updateProjectionMatrix();
+              setPerspective("top", true);
+              quip(pick(QUIPS.boss));
+            },
+          );
+          sfx.roar();
+          shake = 1.2;
+          spawnBlood(grp.position.x, 3, grp.position.z, reduceFx ? 40 : 120, 8);
+        }
+        function damageBoss(d) {
+          if (!boss || boss.dead || cut.active) return;
+          boss.hp -= d;
+          boss.hurt = 0.15;
+          document.getElementById("bossfill").style.width =
+            Math.max((boss.hp / boss.maxHp) * 100, 0) + "%";
+          novaMeter = Math.min(novaMeter + d * 0.25 * stats.novaMul, 100);
+          if (boss.hp <= boss.maxHp * 0.66 && boss.phase === 1)
+            bossPhaseShift(2);
+          else if (boss.hp <= boss.maxHp * 0.33 && boss.phase === 2)
+            bossPhaseShift(3);
+          else if (boss.hp <= 0) killBoss();
+          updateHud();
+        }
+        function bossPhaseShift(p) {
+          boss.phase = p;
+          sfx.phase();
+          sfx.roar();
+          startCutscene(
+            1.8,
+            (k) => {
+              const bp = boss.grp.position;
+              camera.position.set(
+                bp.x + Math.sin(k * 4) * 1.5,
+                6,
+                bp.z + 11 - k * 3,
+              );
+              camera.lookAt(bp.x, 4.5, bp.z);
+              if (k > 0.15 && k < 0.2)
+                showBossTitle("PHASE " + p, p === 2 ? "IT LEARNS" : "IT RAGES");
+              boss.body.scale.setScalar(
+                4.2 * (1 + Math.sin(k * Math.PI) * 0.12),
+              );
+            },
+            () => {
+              hideBossTitle();
+              // THE MOVE SHIFT: perspective flips with each phase
+              setPerspective(mode === "fps" ? "top" : "fps");
+              boss.atkCd = 1;
+              boss.mat.emissive.setHex(p === 3 ? 0x701020 : 0x300010);
+              if (p === 3) boss.moveSpeed = 3.6;
+            },
+          );
+        }
+        function killBoss() {
+          if (boss.dead) return;
+          boss.dead = true;
+          sfx.bigsquish();
+          sfx.roar();
+          const bp = boss.grp.position.clone();
+          startCutscene(
+            2.6,
+            (k) => {
+              camera.position.set(
+                bp.x + 10 - k * 4,
+                5 + k * 3,
+                bp.z + 10 - k * 4,
+              );
+              camera.lookAt(bp.x, 3, bp.z);
+              boss.grp.position.y = -k * 5;
+              boss.body.rotation.z = k * 0.8;
+              if (Math.random() < 0.5)
+                spawnBlood(
+                  bp.x + (Math.random() * 8 - 4),
+                  3,
+                  bp.z + (Math.random() * 8 - 4),
+                  reduceFx ? 6 : 18,
+                  7,
+                );
+              if (Math.random() < 0.25)
+                spawnGibs(bp.x, 3, bp.z, reduceFx ? 2 : 4, true);
+              if (k > 0.4 && k < 0.45)
+                showBossTitle("OBLITERATED", "THE PIT REMEMBERS");
+            },
+            () => {
+              hideBossTitle();
+              scene.remove(boss.grp);
+              for (let k = 0; k < 14; k++)
+                splat(
+                  bp.x + (Math.random() * 14 - 7),
+                  bp.z + (Math.random() * 14 - 7),
+                  1.5 + Math.random() * 2.5,
+                );
+              explode(bp.x, bp.z, 8, 0, true);
+              boss = null;
+              document.getElementById("bossbar").style.display = "none";
+              score += 2500;
+              kills++;
+              awardSP(3, "BOSS SLAIN");
+              openGate(currentSector);
+              updateHud();
+            },
+          );
+        }
+        function bossUpdate(dt) {
+          const b = boss;
+          if (!b || b.dead) return;
+          b.t += dt;
+          const bp = b.grp.position,
+            pp = player.position;
+          const dir = new V().subVectors(pp, bp).setY(0);
+          const dist = dir.length();
+          dir.normalize();
+          // look + idle pulse
+          b.grp.lookAt(pp.x, 0, pp.z);
+          const pul = 1 + Math.sin(b.t * 5) * 0.05;
+          b.body.scale.setScalar(4.2 * pul);
+          b.body.position.y = 4.4 + Math.sin(b.t * 2.2) * 0.25;
+          b.core.material.color.setHex(b.hurt > 0 ? 0xffffff : 0xff2040);
+          if (b.hurt > 0) {
+            b.hurt -= dt;
+            b.mat.emissive.setHex(0xa01020);
+          } else b.mat.emissive.setHex(b.phase === 3 ? 0x701020 : 0x300010);
+          if (Math.random() < dt * 2)
+            spawnBlood(
+              bp.x + (Math.random() * 4 - 2),
+              2,
+              bp.z + (Math.random() * 4 - 2),
+              1,
+              1.5,
+            );
+          // charging state
+          if (b.charging > 0) {
+            b.charging -= dt;
+            b.grp.position.addScaledVector(b.chargeDir, 16 * dt);
+            if (Math.random() < dt * 8) splat(bp.x, bp.z, 0.8);
+            if (dist < 4.5) {
+              damagePlayer(25);
+              b.charging = 0;
+              shake = 1;
+            }
+            return;
+          }
+          // stalk
+          if (dist > 6) b.grp.position.addScaledVector(dir, b.moveSpeed * dt);
+          // contact damage
+          if (dist < 4.6) damagePlayer(22 * dt * 2.5);
+          // attacks
+          b.atkCd -= dt;
+          if (b.atkCd <= 0) {
+            const p = b.phase;
+            const roll = Math.random();
+            if (p === 1) {
+              if (roll < 0.5) bossSlam();
+              else bossCharge();
+              b.atkCd = 2.6;
+            } else if (p === 2) {
+              if (roll < 0.4) bossSpit();
+              else if (roll < 0.7) bossSummon();
+              else bossSlam();
+              b.atkCd = 2.2;
+            } else {
+              if (roll < 0.3) bossSpit();
+              else if (roll < 0.5) bossCharge();
+              else if (roll < 0.7) bossMeteors();
+              else bossSlam();
+              b.atkCd = 1.5;
+            }
+          }
+        }
+        function bossSlam() {
+          const bp = boss.grp.position;
+          sfx.slamWarn();
+          addTelegraph(bp.x, bp.z, 9, 0.9, () => {
+            if (!boss || boss.dead) return;
+            sfx.slam();
+            shake = 1.2;
+            spawnBlood(bp.x, 1, bp.z, reduceFx ? 25 : 70, 8);
+            scorch(bp.x, bp.z, 7);
+            const pd = Math.hypot(
+              player.position.x - bp.x,
+              player.position.z - bp.z,
+            );
+            if (pd < 9) damagePlayer(24);
+            for (const bar of barrels) {
+              if (
+                bar.alive &&
+                Math.hypot(bar.m.position.x - bp.x, bar.m.position.z - bp.z) < 9
+              )
+                detonateBarrel(bar);
+            }
+          });
+        }
+        function bossCharge() {
+          sfx.slamWarn();
+          boss.chargeDir
+            .subVectors(player.position, boss.grp.position)
+            .setY(0)
+            .normalize();
+          setTimeout(() => {
+            if (boss && !boss.dead) {
+              boss.charging = 0.85;
+              sfx.roar();
+            }
+          }, 450);
+        }
+        function bossSpit() {
+          const from = boss.grp.position.clone().setY(3.5);
+          for (let i = 0; i < 5; i++) {
+            setTimeout(() => {
+              if (!boss || boss.dead) return;
+              const target = player.position.clone();
+              target.x += (Math.random() - 0.5) * 4;
+              target.z += (Math.random() - 0.5) * 4;
+              spitAcid(from, target, 14);
+            }, i * 160);
+          }
+        }
+        function bossSummon() {
+          sfx.roar();
+          const c = zc(currentSector);
+          for (let i = 0; i < 4; i++) {
+            const a = Math.random() * Math.PI * 2;
+            const e = makeEnemy(Math.random() < 0.25 ? "brute" : "grunt");
+            e.grp.position.set(
+              Math.cos(a) * (S - 4),
+              0,
+              c + Math.sin(a) * (S - 4),
+            );
+            spawnBlood(e.grp.position.x, 1, e.grp.position.z, 10, 3);
+            enemies.push(e);
+          }
+        }
+        function bossMeteors() {
+          const c = zc(currentSector);
+          for (let i = 0; i < 5; i++) {
+            const x = player.position.x + (Math.random() * 16 - 8);
+            const z = Math.max(
+              Math.min(player.position.z + (Math.random() * 16 - 8), c + S - 2),
+              c - S + 2,
+            );
+            setTimeout(() => {
+              if (!playing) return;
+              sfx.slamWarn();
+              addTelegraph(x, z, 3.6, 1, () => explode(x, z, 3.6, 4, false));
+            }, i * 350);
+          }
+        }
+
+        // ================= CUTSCENE SYSTEM =================
+        const cut = { active: false, t: 0, dur: 0, update: null, onEnd: null };
+        function startCutscene(dur, update, onEnd) {
+          cut.active = true;
+          cut.t = 0;
+          cut.dur = dur;
+          cut.update = update;
+          cut.onEnd = onEnd;
+          document.body.classList.add("cinema");
+          document.getElementById("crosshair").classList.add("hidden");
+          mouseDown = false;
+          for (const e of enemies) e.stagger = Math.max(e.stagger, dur);
+        }
+        function endCutscene() {
+          cut.active = false;
+          document.body.classList.remove("cinema");
+          if (playing)
+            document.getElementById("crosshair").classList.remove("hidden");
+          camera.fov = 60;
+          camera.updateProjectionMatrix();
+          if (cut.onEnd) cut.onEnd();
+        }
+        function showBossTitle(name, sub) {
+          const el = document.getElementById("bossTitle");
+          el.querySelector(".bt-name").textContent = name;
+          el.querySelector(".bt-sub").textContent = sub;
+          el.style.opacity = 1;
+        }
+        function hideBossTitle() {
+          document.getElementById("bossTitle").style.opacity = 0;
+        }
+
+        // ================= WAVES + EVENTS =================
+        function spawnWave() {
+          totalWave++;
+          sectorWave++;
+          document.getElementById("wave").textContent = totalWave;
+          document.getElementById("sector").textContent = currentSector + 1;
+          document.getElementById("objtext").textContent =
+            "CLEAR THE SECTOR (" + sectorWave + "/" + WAVES_PER_SECTOR + ")";
+          const banner = document.getElementById("wave-banner");
+          banner.textContent =
+            "SECTOR " +
+            (currentSector + 1) +
+            " \u2014 WAVE " +
+            totalWave +
+            (mode === "fps" ? " \u2014 FIRST PERSON" : "");
+          banner.style.transition = "none";
+          banner.style.opacity = 1;
+          setTimeout(() => {
+            banner.style.transition = "opacity 1.2s";
+            banner.style.opacity = 0;
+          }, 700);
+          if (totalWave > 1) quip(pick(QUIPS.wave));
+          sfx.wave();
+          const c = zc(currentSector);
+          for (const b of barrels) {
+            scene.remove(b.m);
+          }
+          barrels.length = 0;
+          for (let i = 0; i < 5; i++) {
+            placeBarrel(
+              (Math.random() * 2 - 1) * (S - 7),
+              c + (Math.random() * 2 - 1) * (S - 7),
+            );
+          }
+          const count = Math.min(5 + totalWave * 3, 34);
+          const sec = currentSector;
+          for (let i = 0; i < count; i++) {
+            pendingSpawns++;
+            setTimeout(
+              () => {
+                pendingSpawns--;
+                if (!playing) return;
+                const a = Math.random() * Math.PI * 2,
+                  r = S - 3;
+                const e = makeEnemy(
+                  totalWave > 2 && Math.random() < 0.18 ? "brute" : "grunt",
+                );
+                e.grp.position.set(
+                  Math.cos(a) * r,
+                  0,
+                  zc(sec) + Math.sin(a) * r,
+                );
+                spawnBlood(e.grp.position.x, 1, e.grp.position.z, 8, 2);
+                enemies.push(e);
+              },
+              i * Math.max(900 - totalWave * 60, 250),
+            );
+          }
+          // ---- wave surprises ----
+          if (totalWave > 1) {
+            const r = Math.random();
+            if (r < 0.18) {
+              // AMBUSH
+              setTimeout(() => {
+                if (!playing) return;
+                quip("AMBUSH!");
+                sfx.slamWarn();
+                addTelegraph(
+                  player.position.x,
+                  player.position.z,
+                  7,
+                  1.1,
+                  () => {
+                    for (let k = 0; k < 5; k++) {
+                      const a = Math.random() * Math.PI * 2;
+                      const e = makeEnemy("grunt");
+                      e.grp.position.set(
+                        player.position.x + Math.cos(a) * 6,
+                        0,
+                        player.position.z + Math.sin(a) * 6,
+                      );
+                      spawnBlood(e.grp.position.x, 1, e.grp.position.z, 12, 4);
+                      enemies.push(e);
+                    }
+                  },
+                  0xff8020,
+                );
+              }, 3000);
+            } else if (r < 0.32) {
+              // SUPPLY DROP
+              setTimeout(() => {
+                if (!playing) return;
+                quip("SUPPLY DROP.");
+                sfx.pickup();
+                dropPickup(player.position.x + 3, player.position.z);
+                dropPickup(player.position.x - 3, player.position.z);
+              }, 2500);
+            } else if (r < 0.44) {
+              // FRENZY
+              setTimeout(() => {
+                if (!playing) return;
+                quip("THEY SMELL BLOOD. FRENZY!");
+                sfx.roar();
+                for (const e of enemies) e.speed *= 1.45;
+              }, 4000);
+            } else if (r < 0.56) {
+              // THE GOLD ONE
+              setTimeout(() => {
+                if (!playing) return;
+                quip("A GOLD ONE! DROP IT BEFORE IT RUNS!");
+                sfx.gold();
+                const a = Math.random() * Math.PI * 2;
+                const e = makeEnemy("gold");
+                e.grp.position.set(
+                  Math.cos(a) * (S - 5),
+                  0,
+                  zc(sec) + Math.sin(a) * (S - 5),
+                );
+                enemies.push(e);
+              }, 3500);
+            }
+          }
+        }
+
+        // ================= COMBAT =================
+        function fireRail() {
+          const from = player.position.clone().setY(1.1);
+          const dir = new V()
+            .subVectors(aimPoint, player.position)
+            .setY(0)
+            .normalize();
+          const to = from.clone().addScaledVector(dir, 70);
+          railBeamFx(from, to, WEAPONS.rail.color);
+          sfx.rail();
+          muzzle.intensity = reduceFx ? 2 : 6;
+          shake = Math.min(shake + 0.45, 1);
+          const dmg = WEAPONS.rail.dmg * stats.dmgMul;
+          for (let i = enemies.length - 1; i >= 0; i--) {
+            const e = enemies[i];
+            const ep = new V(e.grp.position.x, 1.1, e.grp.position.z);
+            const toE = new V().subVectors(ep, from);
+            const proj = toE.dot(dir);
+            if (proj < 0) continue;
+            const perp = toE.clone().addScaledVector(dir, -proj).length();
+            if (perp < (e.big ? 1.9 : 1.2)) {
+              e.hp -= dmg;
+              e.hurt = 0.25;
+              spawnBlood(ep.x, 1.2, ep.z, reduceFx ? 10 : 30, 4);
+              splat(ep.x, ep.z, 1);
+              if (e.hp <= 0) killEnemy(e, i);
+            }
+          }
+          if (boss && !boss.dead) {
+            const bp = new V(boss.grp.position.x, 1.1, boss.grp.position.z);
+            const toB = new V().subVectors(bp, from);
+            const proj = toB.dot(dir);
+            if (
+              proj > 0 &&
+              toB.clone().addScaledVector(dir, -proj).length() < 4.2
+            ) {
+              damageBoss(dmg);
+              spawnBlood(bp.x, 3, bp.z, reduceFx ? 12 : 34, 5);
+            }
+          }
+          for (const b of barrels) {
+            if (!b.alive) continue;
+            const bp = new V(b.m.position.x, 1.1, b.m.position.z);
+            const toB = new V().subVectors(bp, from);
+            const proj = toB.dot(dir);
+            if (
+              proj > 0 &&
+              toB.clone().addScaledVector(dir, -proj).length() < 1.1
+            )
+              detonateBarrel(b);
+          }
+        }
+        function fire() {
+          const w = WEAPONS[curWeapon];
+          if (ammo <= 0) {
+            setWeapon("shredder");
+            return;
+          }
+          if (ammo !== Infinity) {
+            ammo--;
+            updateAmmoHud();
+            if (ammo <= 0) {
+              setTimeout(() => setWeapon("shredder"), 200);
+            }
+          }
+          sfx.shot(curWeapon);
+          if (w.rail) {
+            fireRail();
+            return;
+          }
+          const baseDir = new V()
+            .subVectors(aimPoint, player.position)
+            .setY(0)
+            .normalize();
+          for (let p = 0; p < w.pellets; p++) {
+            const b = bullets[bHead];
+            bHead = (bHead + 1) % MAXB;
+            b.alive = true;
+            b.m.visible = true;
+            b.m.material.color.setHex(w.color);
+            b.m.scale.setScalar(w.explosive ? 1.8 : 1);
+            b.dmg = w.dmg * stats.dmgMul;
+            b.explosive = !!w.explosive;
+            b.life = 1.7;
+            b.m.position.copy(player.position);
+            b.m.position.y = 1.1;
+            const dir = baseDir.clone();
+            dir.x += (Math.random() - 0.5) * w.spread;
+            dir.z += (Math.random() - 0.5) * w.spread;
+            b.v.copy(dir.normalize().multiplyScalar(w.speed));
+          }
+          muzzle.intensity = reduceFx ? 1.5 : w.explosive ? 5 : 4;
+          muzzle.color.setHex(w.color);
+          shake = Math.min(
+            shake + (w.explosive ? 0.25 : w.pellets > 1 ? 0.2 : 0.12),
+            0.6,
+          );
+        }
+        function killEnemy(e, i) {
+          if (e.dead) return;
+          e.dead = true;
+          scene.remove(e.grp);
+          const idx = enemies.indexOf(e);
+          if (idx >= 0) enemies.splice(idx, 1);
+          kills++;
+          if (e.gold) {
+            score += 1000;
+            sfx.gold();
+            quip("GOLD ONE DOWN. JACKPOT.");
+            dropPickup(e.grp.position.x + 1.5, e.grp.position.z);
+            dropPickup(e.grp.position.x - 1.5, e.grp.position.z);
+            awardSP(1, "GOLD KILL");
+          } else score += (e.big ? 250 : 100) * Math.max(1, combo);
+          combo++;
+          comboTimer = 2.2;
+          if (combo === 5 || combo === 10 || combo === 16)
+            quip(pick(QUIPS.multikill));
+          novaMeter = Math.min(
+            novaMeter + (e.big ? 14 : 6) * stats.novaMul,
+            100,
+          );
+          if (stats.vamp) hp = Math.min(hp + stats.vamp, stats.maxHp);
+          const p = e.grp.position;
+          if (e.big) sfx.bigsquish();
+          else sfx.squish();
+          spawnBlood(
+            p.x,
+            1.2,
+            p.z,
+            e.big ? (reduceFx ? 40 : 140) : reduceFx ? 20 : 70,
+            e.big ? 7 : 5,
+          );
+          spawnGibs(
+            p.x,
+            1.2,
+            p.z,
+            e.big ? (reduceFx ? 6 : 14) : reduceFx ? 3 : 7,
+            e.big,
+          );
+          splat(p.x, p.z, e.big ? 3.2 : 1.8);
+          splat(
+            p.x + (Math.random() * 2 - 1),
+            p.z + (Math.random() * 2 - 1),
+            e.big ? 2 : 1.2,
+          );
+          shake = Math.min(shake + (e.big ? 0.55 : 0.3), 1.1);
+          if (Math.random() < (e.big ? 0.6 : 0.14) * stats.dropMul)
+            dropPickup(p.x, p.z);
+          updateHud();
+        }
+        function damagePlayer(amt) {
+          if (cut.active) return; // no cheap shots during cinema
+          hp -= amt * stats.armor;
+          if (!reduceFx) hitFlash = Math.min(hitFlash + 0.4, 0.7);
+          shake = Math.min(shake + 0.25, 0.9);
+          if (hurtSfxCd <= 0) {
+            sfx.hurt();
+            hurtSfxCd = 0.25;
+          }
+          if (hurtQuipCd <= 0 && hp > 30) {
+            quip(pick(QUIPS.hurt));
+            hurtQuipCd = 6;
+          }
+          if (hp <= 0) {
+            spawnBlood(
+              player.position.x,
+              1.2,
+              player.position.z,
+              reduceFx ? 60 : 220,
+              8,
+            );
+            spawnGibs(
+              player.position.x,
+              1.2,
+              player.position.z,
+              reduceFx ? 8 : 18,
+              true,
+            );
+            for (let k = 0; k < 6; k++)
+              splat(
+                player.position.x + (Math.random() * 6 - 3),
+                player.position.z + (Math.random() * 6 - 3),
+                2,
+              );
+            sfx.bigsquish();
+            updateHud();
+            gameOver();
+            return;
+          }
+          updateHud();
+        }
+        function bloodNova() {
+          if (novaMeter < 100) return;
+          novaMeter = 0;
+          shake = 1.4;
+          if (!reduceFx) hitFlash = 0.5;
+          quip(pick(QUIPS.nova));
+          sfx.nova();
+          const P = player.position;
+          for (let i = enemies.length - 1; i >= 0; i--) {
+            const e = enemies[i];
+            if (e.grp.position.distanceTo(P) < 13) {
+              killEnemy(e, i);
+            } else {
+              e.stagger = 1.2;
+            }
+          }
+          if (boss && !boss.dead && boss.grp.position.distanceTo(P) < 16)
+            damageBoss(30);
+          spawnBlood(P.x, 1, P.z, reduceFx ? 80 : 300, 10);
+          for (let k = 0; k < 10; k++)
+            splat(
+              P.x + (Math.random() * 16 - 8),
+              P.z + (Math.random() * 16 - 8),
+              1.5 + Math.random() * 2,
+            );
+          updateHud();
+        }
+
+        // ================= INPUT =================
+        addEventListener("keydown", (e) => {
+          keys[e.code] = true;
+          if (e.code === "Space") {
+            e.preventDefault();
+            if (playing && !treeOpen && !cut.active) bloodNova();
+          }
+          if (e.code === "KeyT" && playing) {
+            toggleTree();
+          }
+          if (e.code === "KeyM") {
+            setMuted(!muted);
+            quip(muted ? "MUTED." : "SOUND ON.");
+          }
+        });
+        addEventListener("keyup", (e) => (keys[e.code] = false));
+        addEventListener("mousemove", (e) => {
+          mouse.x = (e.clientX / innerWidth) * 2 - 1;
+          mouse.y = -(e.clientY / innerHeight) * 2 + 1;
+          if (mode === "fps") {
+            if (pointerLocked) {
+              yaw -= e.movementX * 0.0025;
+              pitch = Math.max(
+                -0.6,
+                Math.min(0.6, pitch - e.movementY * 0.0025),
+              );
+            }
+            return;
+          }
+          const ch = document.getElementById("crosshair");
+          ch.style.left = e.clientX + "px";
+          ch.style.top = e.clientY + "px";
+        });
+        addEventListener("mousedown", () => {
+          if (cut.active) {
+            cut.t = cut.dur;
+            return;
+          } // click skips cutscene
+          if (treeOpen) return;
+          if (playing && mode === "fps" && !pointerLocked) tryLock();
+          mouseDown = true;
+        });
+        addEventListener("mouseup", () => (mouseDown = false));
+        addEventListener("resize", () => {
+          camera.aspect = innerWidth / innerHeight;
+          camera.updateProjectionMatrix();
+          renderer.setSize(innerWidth, innerHeight);
+        });
+
+        // ================= HUD =================
+        function updateHud() {
+          document.getElementById("score").textContent = score.toLocaleString();
+          document.getElementById("kills").textContent = kills;
+          document.getElementById("sp").textContent = skillPts;
+          document.getElementById("hpfill").style.width =
+            Math.max((hp / stats.maxHp) * 100, 0) + "%";
+          document.getElementById("novafill").style.width = novaMeter + "%";
+          const c = document.getElementById("combo");
+          if (combo >= 2) {
+            c.style.opacity = 1;
+            document.getElementById("combo-x").textContent = "x" + combo;
+          } else c.style.opacity = 0;
+        }
+
+        // ================= FLOW =================
+        const overlay = document.getElementById("overlay");
+        document.getElementById("startbtn").addEventListener("click", start);
+        function start() {
+          initAudio();
+          setMuted(document.getElementById("muteChk").checked);
+          reduceFx = document.getElementById("reduceFx").checked;
+          pMat.size = reduceFx ? 0.26 : 0.32;
+          for (const e of enemies) scene.remove(e.grp);
+          enemies.length = 0;
+          if (boss) {
+            scene.remove(boss.grp);
+            boss = null;
+          }
+          bossCount = 0;
+          document.getElementById("bossbar").style.display = "none";
+          for (const d of decals) d.visible = false;
+          for (const s2 of scorches) s2.visible = false;
+          for (const g of gibs) g.m.visible = false;
+          for (const b of bullets) {
+            b.alive = false;
+            b.m.visible = false;
+          }
+          for (const b of eBullets) {
+            b.alive = false;
+            b.m.visible = false;
+          }
+          for (const p of pickups) {
+            scene.remove(p.m);
+            scene.remove(p.L);
+          }
+          pickups.length = 0;
+          for (const b of barrels) {
+            scene.remove(b.m);
+          }
+          barrels.length = 0;
+          for (const tg of telegraphs) scene.remove(tg.m);
+          telegraphs.length = 0;
+          for (const a of acidPools) scene.remove(a.m);
+          acidPools.length = 0;
+          for (const g of sectorGroups) scene.remove(g);
+          sectorGroups.length = 0;
+          gates.length = 0;
+          pillarsAll.length = 0;
+          for (const kk in corridorAmbush) delete corridorAmbush[kk];
+          maxSector = -1;
+          currentSector = 0;
+          gateOpenedFor = -1;
+          pendingSpawns = 0;
+          resetStats();
+          buildTreeUI();
+          buildSector(0);
+          pLife.fill(0);
+          score = 0;
+          kills = 0;
+          totalWave = 0;
+          sectorWave = 0;
+          hp = stats.maxHp;
+          combo = 0;
+          novaMeter = 30;
+          shake = 0;
+          hitFlash = 0;
+          cut.active = false;
+          document.body.classList.remove("cinema");
+          hideBossTitle();
+          toggleTree(false);
+          setWeapon("shredder");
+          player.position.set(0, 0, 0);
+          overlay.classList.add("hidden");
+          document.getElementById("hud").classList.remove("hidden");
+          document.getElementById("crosshair").classList.remove("hidden");
+          playing = true;
+          setPerspective("top", true);
+          updateHud();
+          spawnWave();
+        }
+        function gameOver() {
+          playing = false;
+          if (document.exitPointerLock) document.exitPointerLock();
+          toggleTree(false);
+          cut.active = false;
+          document.body.classList.remove("cinema");
+          hideBossTitle();
+          document.getElementById("crosshair").classList.add("hidden");
+          const fs = document.getElementById("finalscore");
+          fs.style.display = "block";
+          fs.textContent =
+            "SPLATTERED \u2014 SCORE " +
+            score.toLocaleString() +
+            " \u00b7 " +
+            kills +
+            " KILLS \u00b7 SECTOR " +
+            (currentSector + 1);
+          document.getElementById("startbtn").textContent = "RUN IT BACK";
+          overlay.classList.remove("hidden");
+        }
+
+        // ================= MAIN LOOP =================
+        const clock = new THREE.Clock();
+        let waveCooldown = 0;
+        function tick() {
+          requestAnimationFrame(tick);
+          const dtReal = Math.min(clock.getDelta(), 0.05);
+          const slow = transitioning || cut.active;
+          const dt = slow ? dtReal * 0.3 : dtReal;
+          const t = clock.elapsedTime;
+          const gameplayOn = playing && !treeOpen && !cut.active;
+
+          if (gameplayOn) {
+            const mv = new V();
+            if (mode === "fps") {
+              const fwd = new V(-Math.sin(yaw), 0, -Math.cos(yaw));
+              const right = new V(-fwd.z, 0, fwd.x);
+              if (keys["KeyW"]) mv.add(fwd);
+              if (keys["KeyS"]) mv.sub(fwd);
+              if (keys["KeyD"]) mv.add(right);
+              if (keys["KeyA"]) mv.sub(right);
+            } else {
+              if (keys["KeyW"]) mv.z -= 1;
+              if (keys["KeyS"]) mv.z += 1;
+              if (keys["KeyA"]) mv.x -= 1;
+              if (keys["KeyD"]) mv.x += 1;
+            }
+            const moving = mv.lengthSq() > 0;
+            movingFlag = moving;
+            if (moving) {
+              mv.normalize().multiplyScalar(13 * stats.speedMul * dt);
+              const nx = player.position.x + mv.x,
+                nz = player.position.z + mv.z;
+              if (walkable(nx, player.position.z)) player.position.x = nx;
+              if (walkable(player.position.x, nz)) player.position.z = nz;
+              walkPhase += dt * 11;
+            }
+            const sw = moving ? Math.sin(walkPhase) * 0.7 : 0;
+            legs[1].rotation.x = sw;
+            legs[-1].rotation.x = -sw;
+            arms[1].rotation.x = -sw * 0.6;
+            arms[-1].rotation.x = sw * 0.6;
+            bodyMesh.position.y =
+              1.35 +
+              (moving
+                ? Math.abs(Math.sin(walkPhase)) * 0.12
+                : Math.sin(t * 2) * 0.04);
+
+            // corridor ambush surprise
+            if (
+              currentSector < maxSector &&
+              gates[currentSector] &&
+              gates[currentSector].open
+            ) {
+              const midZ = zc(currentSector) - S - CORR_LEN / 2;
+              if (
+                !corridorAmbush[currentSector] &&
+                Math.abs(player.position.x) < CORR_W / 2 &&
+                Math.abs(player.position.z - midZ) < 3
+              ) {
+                corridorAmbush[currentSector] = true;
+                if (Math.random() < 0.45) {
+                  quip("BEHIND YOU.");
+                  sfx.slamWarn();
+                  for (let k = 0; k < 3; k++) {
+                    const e = makeEnemy("grunt");
+                    e.grp.position.set(
+                      (Math.random() * 2 - 1) * 2,
+                      0,
+                      midZ + CORR_LEN / 2 - 2 - k * 2,
+                    );
+                    spawnBlood(e.grp.position.x, 1, e.grp.position.z, 8, 3);
+                    enemies.push(e);
+                  }
+                }
+              }
+            }
+            // sector transition
+            if (
+              currentSector < maxSector &&
+              player.position.z < zc(currentSector + 1) + S - 2
+            ) {
+              currentSector++;
+              sectorWave = 0;
+              hp = Math.min(hp + 25, stats.maxHp);
+              if (isBossSector(currentSector)) {
+                spawnBoss();
+              } else {
+                setPerspective(currentSector % 2 === 1 ? "fps" : "top");
+                spawnWave();
+              }
+              awardSP(1, "SECTOR REACHED");
+            }
+
+            if (mode === "fps") {
+              if (!pointerLocked) {
+                const dz = 0.12;
+                if (Math.abs(mouse.x) > dz) {
+                  const m = mouse.x - Math.sign(mouse.x) * dz;
+                  yaw -= (m * Math.abs(m) * 9 * dtReal) / (1 - dz);
+                }
+                pitch += (-mouse.y * 0.55 - pitch) * Math.min(dtReal * 6, 1);
+              }
+              player.rotation.set(0, yaw, 0);
+              aimPoint.set(
+                player.position.x - Math.sin(yaw) * 50,
+                1,
+                player.position.z - Math.cos(yaw) * 50,
+              );
+            } else {
+              raycaster.setFromCamera(mouse, camera);
+              raycaster.ray.intersectPlane(groundPlane, aimPoint);
+              if (aimPoint) {
+                player.lookAt(aimPoint.x, player.position.y, aimPoint.z);
+                player.rotateY((190 * Math.PI) / 180);
+              }
+            }
+
+            fireCd -= dt;
+            hurtQuipCd -= dt;
+            hurtSfxCd -= dt;
+            if (mouseDown && fireCd <= 0) {
+              fire();
+              fireCd = WEAPONS[curWeapon].cd / stats.fireMul;
+            }
+            muzzle.intensity *= 0.8;
+
+            // acid pools burn
+            for (const a of acidPools) {
+              if (
+                Math.hypot(player.position.x - a.x, player.position.z - a.z) <
+                a.r * 0.9
+              ) {
+                damagePlayer(14 * dt);
+                if (Math.random() < dt * 6)
+                  spawnBlood(player.position.x, 0.4, player.position.z, 1, 1);
+              }
+            }
+
+            // bullets
+            for (const b of bullets) {
+              if (!b.alive) continue;
+              b.life -= dt;
+              b.m.position.addScaledVector(b.v, dt);
+              const bp = b.m.position;
+              if (b.life <= 0) {
+                if (b.explosive)
+                  explode(
+                    bp.x,
+                    bp.z,
+                    4.5 * stats.boomMul,
+                    3 * stats.dmgMul,
+                    true,
+                  );
+                b.alive = false;
+                b.m.visible = false;
+                continue;
+              }
+              let hit = false;
+              for (const bar of barrels) {
+                if (!bar.alive) continue;
+                if (
+                  bp.distanceToSquared(
+                    new V(bar.m.position.x, 1.1, bar.m.position.z),
+                  ) < 1.2
+                ) {
+                  detonateBarrel(bar);
+                  hit = true;
+                  break;
+                }
+              }
+              if (!hit && boss && !boss.dead) {
+                if (
+                  bp.distanceToSquared(
+                    new V(boss.grp.position.x, 1.1, boss.grp.position.z),
+                  ) < 18
+                ) {
+                  hit = true;
+                  if (b.explosive)
+                    explode(
+                      bp.x,
+                      bp.z,
+                      4.5 * stats.boomMul,
+                      3 * stats.dmgMul,
+                      true,
+                    );
+                  else {
+                    damageBoss(b.dmg);
+                    spawnBlood(bp.x, bp.y + 1.5, bp.z, reduceFx ? 6 : 16, 4);
+                  }
+                }
+              }
+              if (!hit)
+                for (let i = enemies.length - 1; i >= 0; i--) {
+                  const e = enemies[i];
+                  const r = e.big ? 1.9 : 1.1;
+                  if (
+                    bp.distanceToSquared(
+                      new V(e.grp.position.x, 1.1, e.grp.position.z),
+                    ) <
+                    r * r
+                  ) {
+                    hit = true;
+                    if (b.explosive) {
+                      explode(
+                        bp.x,
+                        bp.z,
+                        4.5 * stats.boomMul,
+                        3 * stats.dmgMul,
+                        true,
+                      );
+                    } else {
+                      e.hp -= b.dmg;
+                      e.stagger = 0.18;
+                      e.hurt = 0.18;
+                      spawnBlood(bp.x, bp.y, bp.z, reduceFx ? 6 : 18, 3);
+                      splat(
+                        bp.x + (Math.random() - 0.5),
+                        bp.z + (Math.random() - 0.5),
+                        0.6,
+                      );
+                      if (e.hp <= 0) killEnemy(e, i);
+                    }
+                    break;
+                  }
+                }
+              if (hit) {
+                b.alive = false;
+                b.m.visible = false;
+              }
+            }
+            // enemy acid projectiles
+            for (const b of eBullets) {
+              if (!b.alive) continue;
+              b.life -= dt;
+              b.m.position.addScaledVector(b.v, dt);
+              const bp = b.m.position;
+              if (
+                bp.distanceToSquared(
+                  new V(player.position.x, bp.y, player.position.z),
+                ) < 1.4
+              ) {
+                damagePlayer(12);
+                b.alive = false;
+                b.m.visible = false;
+                continue;
+              }
+              if (b.life <= 0) {
+                addAcidPool(bp.x, bp.z, 1.6, 4);
+                b.alive = false;
+                b.m.visible = false;
+              }
+            }
+
+            // enemies
+            for (let i = enemies.length - 1; i >= 0; i--) {
+              const e = enemies[i];
+              e.t += dt;
+              e.life -= dt;
+              if (e.life <= 0) {
+                scene.remove(e.grp);
+                enemies.splice(i, 1);
+                quip("THE GOLD ONE GOT AWAY.");
+                continue;
+              }
+              if (e.stagger > 0) {
+                e.stagger -= dt;
+                continue;
+              }
+              const dir = new V()
+                .subVectors(player.position, e.grp.position)
+                .setY(0);
+              const dist = dir.length();
+              dir.normalize();
+              if (e.gold) dir.multiplyScalar(-1); // it flees
+              e.grp.position.addScaledVector(dir, e.speed * dt);
+              if (e.gold) {
+                // keep it in the sector
+                const c = zc(currentSector);
+                e.grp.position.x = Math.max(
+                  -S + 2,
+                  Math.min(S - 2, e.grp.position.x),
+                );
+                e.grp.position.z = Math.max(
+                  c - S + 2,
+                  Math.min(c + S - 2, e.grp.position.z),
+                );
+              }
+              e.grp.lookAt(
+                player.position.x,
+                e.grp.position.y,
+                player.position.z,
+              );
+              const pul = 1 + Math.sin(e.t * 9) * 0.07;
+              e.body.scale.set(
+                e.baseScale * pul,
+                e.baseScale * (2 - pul) * 0.5 + e.baseScale * 0.5,
+                e.baseScale * pul,
+              );
+              e.body.rotation.y = Math.sin(e.t * 3) * 0.25;
+              e.grp.position.y = Math.abs(Math.sin(e.t * 8)) * 0.18;
+              if (e.hurt > 0) {
+                e.hurt -= dt;
+                e.mat.emissive.setHex(0xa01020);
+              } else if (!e.gold) e.mat.emissive.setHex(0x200008);
+              if (Math.random() < dt * 1.2)
+                spawnBlood(
+                  e.grp.position.x,
+                  e.big ? 1.4 : 0.9,
+                  e.grp.position.z,
+                  1,
+                  0.8,
+                );
+              if (Math.random() < dt * 0.35)
+                splat(
+                  e.grp.position.x,
+                  e.grp.position.z,
+                  0.3 + Math.random() * 0.2,
+                );
+              for (const p of pillarsAll) {
+                const dx = e.grp.position.x - p.x,
+                  dz = e.grp.position.z - p.z;
+                const d2 = dx * dx + dz * dz;
+                if (d2 < 6.5) {
+                  const d = Math.sqrt(d2) || 0.01;
+                  e.grp.position.x += (dx / d) * dt * 6;
+                  e.grp.position.z += (dz / d) * dt * 6;
+                }
+              }
+              if (!e.gold && dist < (e.big ? 2.4 : 1.6)) {
+                damagePlayer((e.big ? 26 : 14) * dt * 3.2);
+                spawnBlood(player.position.x, 1, player.position.z, 4, 2);
+                if (!playing) break;
+              }
+            }
+
+            // boss brain
+            if (boss) bossUpdate(dt);
+
+            // pickups
+            for (let i = pickups.length - 1; i >= 0; i--) {
+              const p = pickups[i];
+              p.t += dt;
+              p.life -= dt;
+              p.m.rotation.y += dt * 2.5;
+              p.m.position.y = 0.9 + Math.sin(p.t * 3) * 0.2;
+              p.L.intensity = 1 + Math.sin(p.t * 4) * 0.4;
+              if (p.life < 2) p.m.visible = Math.sin(p.t * 10) > 0;
+              if (p.life <= 0) {
+                scene.remove(p.m);
+                scene.remove(p.L);
+                pickups.splice(i, 1);
+                continue;
+              }
+              if (p.m.position.distanceTo(player.position) < 1.8) {
+                setWeapon(p.k);
+                quip(QUIPS.pickup[p.k]);
+                sfx.pickup();
+                scene.remove(p.m);
+                scene.remove(p.L);
+                pickups.splice(i, 1);
+                shake = Math.min(shake + 0.15, 0.5);
+              }
+            }
+
+            // wave / gate logic
+            if (enemies.length === 0 && pendingSpawns === 0 && !boss) {
+              if (isBossSector(currentSector)) {
+                // boss dead -> gate already opened in killBoss
+              } else if (sectorWave >= WAVES_PER_SECTOR) {
+                if (gateOpenedFor !== currentSector) {
+                  gateOpenedFor = currentSector;
+                  openGate(currentSector);
+                  awardSP(1, "SECTOR CLEARED");
+                }
+              } else {
+                waveCooldown += dt;
+                if (waveCooldown > 1.8) {
+                  waveCooldown = 0;
+                  spawnWave();
+                }
+              }
+            }
+            if (comboTimer > 0) {
+              comboTimer -= dt;
+              if (comboTimer <= 0) {
+                combo = 0;
+                updateHud();
+              }
+            }
+          }
+
+          // ---- cutscene driver ----
+          if (cut.active) {
+            cut.t += dtReal;
+            const k = Math.min(cut.t / cut.dur, 1);
+            if (cut.update) cut.update(k, dtReal);
+            if (cut.t >= cut.dur) endCutscene();
+          }
+
+          // telegraphs (run even in cutscenes for boss attacks queued earlier)
+          for (let i = telegraphs.length - 1; i >= 0; i--) {
+            const tg = telegraphs[i];
+            tg.t += dt;
+            const k = Math.min(tg.t / tg.dur, 1);
+            tg.m.scale.setScalar(0.2 + k * tg.r);
+            tg.m.material.opacity = 0.9 - k * 0.4 + Math.sin(t * 16) * 0.08;
+            if (k >= 1) {
+              scene.remove(tg.m);
+              telegraphs.splice(i, 1);
+              if (tg.onDone) tg.onDone();
+            }
+          }
+          // acid pool shimmer + dynamic expiry
+          for (let i = acidPools.length - 1; i >= 0; i--) {
+            const a = acidPools[i];
+            a.t += dt;
+            a.m.material.opacity = 0.35 + Math.sin(a.t * 3) * 0.12;
+            if (a.life < 1e8) {
+              a.life -= dt;
+              if (a.life <= 0) {
+                scene.remove(a.m);
+                acidPools.splice(i, 1);
+              }
+            }
+          }
+
+          if (quipTimer > 0) {
+            quipTimer -= dt;
+            if (quipTimer <= 0)
+              document.getElementById("quip").style.opacity = 0;
+          }
+          for (let i = beams.length - 1; i >= 0; i--) {
+            const b = beams[i];
+            b.life -= dt;
+            b.l.material.opacity = Math.max(b.life * 4, 0);
+            if (b.life <= 0) {
+              scene.remove(b.l);
+              beams.splice(i, 1);
+            }
+          }
+          for (const bl of boomLights) {
+            if (bl.life > 0) {
+              bl.life -= dt;
+              bl.L.intensity *= 0.85;
+              if (bl.life <= 0) bl.L.intensity = 0;
+            }
+          }
+
+          // particles
+          for (let i = 0; i < PCOUNT; i++) {
+            if (pLife[i] <= 0) continue;
+            pLife[i] -= dt;
+            pVel[i * 3 + 1] -= 22 * dt;
+            pPos[i * 3] += pVel[i * 3] * dt;
+            pPos[i * 3 + 1] += pVel[i * 3 + 1] * dt;
+            pPos[i * 3 + 2] += pVel[i * 3 + 2] * dt;
+            if (pPos[i * 3 + 1] < 0.05) {
+              pPos[i * 3 + 1] = 0.05;
+              pLife[i] = 0;
+              if (Math.random() < 0.06)
+                splat(pPos[i * 3], pPos[i * 3 + 2], 0.4 + Math.random() * 0.5);
+            }
+            if (pLife[i] <= 0) {
+              pPos[i * 3 + 1] = -50;
+            }
+          }
+          pGeo.attributes.position.needsUpdate = true;
+          // gibs
+          for (const g of gibs) {
+            if (!g.m.visible) continue;
+            g.life -= dt;
+            if (g.life <= 0) {
+              g.m.visible = false;
+              continue;
+            }
+            g.v.y -= 20 * dt;
+            g.m.position.addScaledVector(g.v, dt);
+            g.m.rotation.x += g.av.x * dt;
+            g.m.rotation.y += g.av.y * dt;
+            g.m.rotation.z += g.av.z * dt;
+            if (g.m.position.y < 0.25) {
+              g.m.position.y = 0.25;
+              g.v.y *= -0.35;
+              g.v.x *= 0.6;
+              g.v.z *= 0.6;
+              g.av.multiplyScalar(0.5);
+              if (Math.abs(g.v.y) < 1) {
+                g.v.set(0, 0, 0);
+                g.av.set(0, 0, 0);
+              }
+              if (Math.random() < 0.4)
+                splat(g.m.position.x, g.m.position.z, 0.5);
+            }
+          }
+          // accent glow tracks nova charge; ripper barrels spin up while firing
+          for (const k2 in ACCENT) ACCENT[k2].emissiveIntensity = 0.45;
+          ACCENT[curWeapon].emissiveIntensity = 0.45 + (novaMeter / 100) * 0.9;
+          const spinRate =
+            curWeapon === "ripper" && mouseDown && playing ? dt * 34 : dt * 1.6;
+          if (heldSpin) heldSpin.rotation.z += spinRate;
+          if (vmSpin && heldSpin) vmSpin.rotation.z = heldSpin.rotation.z;
+
+          // ---- camera ----
+          shake = Math.max(0, shake - dt * 2.2);
+          const s = reduceFx ? shake * 0.3 : shake;
+          if (!cut.active) {
+            if (mode === "fps") {
+              camera.rotation.order = "YXZ";
+              const bob = movingFlag
+                ? Math.abs(Math.sin(walkPhase)) * 0.07
+                : Math.sin(t * 2) * 0.02;
+              camera.position.set(
+                player.position.x + (Math.random() - 0.5) * s * 0.35,
+                1.7 + bob + (Math.random() - 0.5) * s * 0.25,
+                player.position.z + (Math.random() - 0.5) * s * 0.35,
+              );
+              camera.rotation.set(
+                pitch + (Math.random() - 0.5) * s * 0.02,
+                yaw,
+                0,
+              );
+              vmMount.position.z = -0.75 + (fireCd > 0 ? 0.08 : 0);
+            } else {
+              camera.position.set(
+                player.position.x + CAM_OFF.x + (Math.random() - 0.5) * s * 1.6,
+                CAM_OFF.y + (Math.random() - 0.5) * s,
+                player.position.z + CAM_OFF.z + (Math.random() - 0.5) * s * 1.6,
+              );
+              camera.lookAt(player.position.x, 0, player.position.z);
+            }
+            if (transitioning) {
+              transT += dtReal;
+              const k = easeSwoop(Math.min(transT / TRANS_DUR, 1));
+              const targetPos = camera.position.clone();
+              const targetQ = camera.quaternion.clone();
+              camera.position.lerpVectors(transFrom.pos, targetPos, k);
+              const arc = Math.sin(k * Math.PI);
+              camera.position.x += Math.cos(yaw) * arc * 3.5;
+              camera.position.y += arc * 2.2;
+              tmpQ.copy(transFrom.quat).slerp(targetQ, k);
+              camera.quaternion.copy(tmpQ);
+              camera.fov = 60 + arc * 20;
+              camera.updateProjectionMatrix();
+              if (mode === "fps" && k > 0.72 && playerParts[0].visible) {
+                for (const p of playerParts) p.visible = false;
+                vmMount.visible = true;
+              }
+              if (transT >= TRANS_DUR) {
+                transitioning = false;
+                camera.fov = 60;
+                camera.updateProjectionMatrix();
+                if (mode === "fps" && playerParts[0].visible) {
+                  for (const p of playerParts) p.visible = false;
+                  vmMount.visible = true;
+                }
+              }
+            }
+          }
+          key.position.set(player.position.x + 10, 30, player.position.z + 10);
+          key.target.position.copy(player.position);
+          rim.position.set(player.position.x, 8, player.position.z);
+          rim.intensity = 2 + Math.sin(t * 3) * 0.6;
+
+          hitFlash = Math.max(0, hitFlash - dt * 1.6);
+          document.getElementById("vignette").style.background =
+            `radial-gradient(ellipse at center, transparent 50%, rgba(120,5,20,${hitFlash.toFixed(2)}) 100%)`;
+
+          renderer.render(scene, camera);
+        }
+        tick();
+      })();
+    </script>
+  </body>
+</html>
