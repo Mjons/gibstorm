@@ -2817,55 +2817,491 @@
         // ================= BOSS =================
         let boss = null,
           bossCount = 0;
-        const BOSS_NAMES = [
-          ["THE BUTCHER PRIME", "DEVOURER OF SECTORS"],
-          ["GRISTLE KING", "CROWNED IN BONE"],
-          ["THE WET CATHEDRAL", "IT SHOULD NOT WALK"],
-        ];
-        function spawnBoss() {
-          const c = zc(currentSector);
-          const grp = new THREE.Group();
-          const geo = lumpify(
-            new THREE.IcosahedronGeometry(1, 3),
-            0.5,
-            bossCount * 7 + 3,
-          );
-          const mat = new THREE.MeshStandardMaterial({
-            color: 0x701030,
-            roughness: 0.5,
-            emissive: 0x300010,
-            flatShading: true,
-          });
-          const body = new THREE.Mesh(geo, mat);
-          body.castShadow = true;
-          body.position.y = 4.4;
-          body.scale.setScalar(4.2);
-          grp.add(body);
-          dressFlesh(body, true);
-          // crown of bone
-          for (let i = 0; i < 7; i++) {
-            const a = (i / 7) * Math.PI * 2;
+        // --- reusable silhouette piece: ring of bone horns ---
+        function crownOfBone(body, n, len, rad, mat, yy) {
+          for (let i = 0; i < n; i++) {
+            const a = (i / n) * Math.PI * 2;
             const h = new THREE.Mesh(
-              new THREE.ConeGeometry(0.14, 1.1, 5),
-              boneMat,
+              new THREE.ConeGeometry(0.13, len, 5),
+              mat || boneMat,
             );
-            h.position.set(Math.cos(a) * 0.55, 0.85, Math.sin(a) * 0.55);
+            h.position.set(
+              Math.cos(a) * rad,
+              yy == null ? 0.85 : yy,
+              Math.sin(a) * rad,
+            );
             h.rotation.x = Math.cos(a) * 0.5;
             h.rotation.z = -Math.sin(a) * 0.5;
             body.add(h);
           }
+        }
+        // --- distinct intro camera choreographies, keyed by name ---
+        const BOSS_INTROS = {
+          orbit: (k, dtc, bp, b) => {
+            const a = k * Math.PI * 1.6 - 0.6;
+            camera.position.set(
+              bp.x + Math.cos(a) * 13,
+              4 + k * 5,
+              bp.z + Math.sin(a) * 13,
+            );
+            camera.lookAt(bp.x, 4, bp.z);
+            camera.fov = 52 + Math.sin(k * Math.PI) * 10;
+            camera.updateProjectionMatrix();
+            b.body.rotation.y += dtc * 0.5;
+          },
+          dolly: (k, dtc, bp, b) => {
+            // low ground-level shove forward, throne-room rumble
+            camera.position.set(bp.x + 0.6, 1.4 + k * 2.6, bp.z + 19 - k * 10);
+            camera.lookAt(bp.x, 3 + k * 2, bp.z);
+            camera.fov = 62 - k * 16;
+            camera.updateProjectionMatrix();
+            b.body.rotation.y += dtc * 0.3;
+            if (k < 0.85) shake = Math.max(shake, 0.25);
+          },
+          rise: (k, dtc, bp, b) => {
+            // hauls itself up out of the floor
+            b.grp.position.y = -13 * (1 - k * k);
+            const a = -0.5 + k * 1.2;
+            camera.position.set(
+              bp.x + Math.cos(a) * 11,
+              2 + k * 5,
+              bp.z + Math.sin(a) * 11,
+            );
+            camera.lookAt(bp.x, 1 + k * 5, bp.z);
+            camera.fov = 58;
+            camera.updateProjectionMatrix();
+            b.body.rotation.y += dtc * 0.4;
+          },
+          strafe: (k, dtc, bp, b) => {
+            // hard side-track past the machine, sparks flying
+            camera.position.set(bp.x - 15 + k * 30, 4.5, bp.z + 9.5);
+            camera.lookAt(bp.x, 4, bp.z);
+            camera.fov = 56;
+            camera.updateProjectionMatrix();
+            b.body.rotation.y += dtc * 0.6;
+            if (!reduceFx && k > 0.2 && k < 0.8 && Math.random() < 0.25)
+              railBeamFx(
+                new V(bp.x, 4, bp.z),
+                new V(
+                  bp.x + (Math.random() * 20 - 10),
+                  0.2,
+                  bp.z + (Math.random() * 20 - 10),
+                ),
+                b.def.glow,
+              );
+          },
+          spiral: (k, dtc, bp, b) => {
+            // descending spiral around the swarm
+            const a = k * Math.PI * 3;
+            camera.position.set(
+              bp.x + Math.cos(a) * 11,
+              17 - k * 12,
+              bp.z + Math.sin(a) * 11,
+            );
+            camera.lookAt(bp.x, 4, bp.z);
+            camera.fov = 50 + Math.sin(k * Math.PI) * 8;
+            camera.updateProjectionMatrix();
+            b.body.rotation.y += dtc * 0.9;
+          },
+          skyfall: (k, dtc, bp, b) => {
+            // plummet from the ceiling, slow-burn reveal of the final thing
+            const e = k * k;
+            camera.position.set(bp.x + 1.5, 62 - e * 55, bp.z + 2 + e * 11);
+            camera.lookAt(bp.x, 4, bp.z);
+            camera.fov = 38 + e * 26;
+            camera.updateProjectionMatrix();
+            b.body.rotation.y += dtc * 0.25;
+            if (k > 0.82) shake = Math.max(shake, 1.4);
+          },
+        };
+        // --- 6 procedurally-distinct bosses: size, color, silhouette, kit, cinema ---
+        const BOSS_DEFS = [
+          {
+            name: "THE BUTCHER PRIME",
+            sub: "DEVOURER OF SECTORS",
+            size: 4.2,
+            bodyY: 4.4,
+            scaleVec: [1, 1, 1],
+            moveSpeed: 2.2,
+            color: 0x701030,
+            emissive: 0x300010,
+            rage: 0x901028,
+            emHurt: 0xc01828,
+            coreColor: 0xff2040,
+            glow: 0xff2040,
+            detail: 3,
+            lump: 0.5,
+            intro: "orbit",
+            introDur: 3.2,
+            killTitle: "OBLITERATED",
+            killSub: "THE PIT REMEMBERS",
+            phaseSub: ["IT LEARNS", "IT RAGES"],
+            cd: [2.6, 2.2, 1.5],
+            attacks: {
+              1: [bossSlam, bossCharge],
+              2: [bossSpit, bossSummon, bossSlam],
+              3: [bossSpit, bossCharge, bossMeteors, bossSlam],
+            },
+            adorn(body) {
+              crownOfBone(body, 7, 1.1, 0.55);
+            },
+          },
+          {
+            name: "GRISTLE KING",
+            sub: "CROWNED IN BONE",
+            size: 4.7,
+            bodyY: 4.9,
+            scaleVec: [1.05, 0.95, 1.05],
+            moveSpeed: 1.9,
+            color: 0x7a5818,
+            emissive: 0x2a1c04,
+            rage: 0x5a3a08,
+            emHurt: 0xb89020,
+            coreColor: 0xffd24a,
+            glow: 0xffcb50,
+            detail: 3,
+            lump: 0.46,
+            intro: "dolly",
+            introDur: 3.4,
+            killTitle: "DETHRONED",
+            killSub: "THE CROWN ROLLS FREE",
+            phaseSub: ["THE COURT GATHERS", "LONG LIVE NOTHING"],
+            cd: [2.4, 2.1, 1.6],
+            attacks: {
+              1: [bossSummon, bossPillars, bossCharge],
+              2: [bossSummon, bossPillars, bossSlam],
+              3: [bossSummon, bossPillars, bossMeteors, bossCharge],
+            },
+            adorn(body) {
+              crownOfBone(body, 11, 1.7, 0.5, boneMat, 0.9);
+              crownOfBone(body, 9, 0.9, 0.95, boneMat, -0.2);
+              for (let s = -1; s <= 1; s += 2) {
+                const t = new THREE.Mesh(
+                  new THREE.ConeGeometry(0.16, 1.5, 6),
+                  goldMat,
+                );
+                t.position.set(0.42 * s, 0.1, -0.82);
+                t.rotation.x = -1.9;
+                t.rotation.z = 0.35 * s;
+                body.add(t);
+              }
+            },
+          },
+          {
+            name: "THE WET CATHEDRAL",
+            sub: "IT SHOULD NOT WALK",
+            size: 3.7,
+            bodyY: 5.0,
+            scaleVec: [0.74, 1.42, 0.74],
+            moveSpeed: 2.4,
+            color: 0x3a1452,
+            emissive: 0x16002a,
+            rage: 0x4a1070,
+            emHurt: 0x9040c0,
+            coreColor: 0xc060ff,
+            glow: 0xb050ff,
+            detail: 3,
+            lump: 0.42,
+            intro: "rise",
+            introDur: 3.6,
+            killTitle: "UNMADE",
+            killSub: "IT WALKS NO MORE",
+            phaseSub: ["THE WALLS WEEP", "THE CHOIR SCREAMS"],
+            cd: [2.2, 1.9, 1.4],
+            attacks: {
+              1: [bossSpit, bossRing],
+              2: [bossRing, bossSpit, bossTeleport],
+              3: [bossRing, bossTeleport, bossMeteors, bossSpit],
+            },
+            adorn(body, b) {
+              for (let i = 0; i < 5; i++) {
+                const a = (i / 5) * Math.PI * 2;
+                const sp = new THREE.Mesh(
+                  new THREE.ConeGeometry(0.1, 1.6 + (i % 3) * 0.5, 5),
+                  boneMat,
+                );
+                sp.position.set(Math.cos(a) * 0.4, 0.95, Math.sin(a) * 0.4);
+                body.add(sp);
+              }
+              for (let i = 0; i < 9; i++) {
+                const e = new THREE.Mesh(
+                  new THREE.SphereGeometry(0.08 + (i % 3) * 0.03, 6, 5),
+                  new THREE.MeshBasicMaterial({ color: b.def.coreColor }),
+                );
+                const a = (i / 9) * Math.PI * 2,
+                  el = (i % 4) * 0.35;
+                e.position
+                  .set(
+                    Math.cos(a) * Math.cos(el),
+                    0.1 + Math.sin(el),
+                    -Math.abs(Math.sin(a)) - 0.3,
+                  )
+                  .setLength(0.96);
+                body.add(e);
+              }
+              // dripping tendrils that sway beneath it
+              const tenMat = new THREE.MeshStandardMaterial({
+                color: 0x2a0830,
+                emissive: 0x300240,
+                roughness: 0.4,
+              });
+              for (let i = 0; i < 6; i++) {
+                const t = new THREE.Mesh(
+                  new THREE.CylinderGeometry(0.18, 0.04, 4.2, 5),
+                  tenMat,
+                );
+                b.grp.add(t);
+                b.orbiters.push({
+                  m: t,
+                  baseA: (i / 6) * Math.PI * 2,
+                  rad: 3.0,
+                  yOff: 2.6,
+                  orbit: 0.25,
+                  self: 0,
+                  bob: 1.4,
+                });
+              }
+            },
+          },
+          {
+            name: "SCRAPMAW",
+            sub: "THE RUST GOD",
+            size: 4.1,
+            bodyY: 4.3,
+            scaleVec: [1.15, 0.85, 1.15],
+            moveSpeed: 2.0,
+            metal: 0.85,
+            color: 0x8a3a14,
+            emissive: 0x301000,
+            rage: 0xa03808,
+            emHurt: 0xff6010,
+            coreColor: 0xff7020,
+            glow: 0xff7826,
+            detail: 2,
+            lump: 0.34,
+            intro: "strafe",
+            introDur: 3.3,
+            killTitle: "SCRAPPED",
+            killSub: "RUST CLAIMS ALL ENGINES",
+            phaseSub: ["GEARS BITE DOWN", "MELTDOWN"],
+            cd: [2.3, 1.9, 1.4],
+            attacks: {
+              1: [bossLaserSweep, bossCharge],
+              2: [bossLaserSweep, bossMeteors, bossSlam],
+              3: [bossLaserSweep, bossMeteors, bossCharge, bossRing],
+            },
+            adorn(body, b) {
+              const gearMat = new THREE.MeshStandardMaterial({
+                color: 0x4a2810,
+                metalness: 0.85,
+                roughness: 0.4,
+                emissive: 0x180600,
+              });
+              const ring = new THREE.Mesh(
+                new THREE.TorusGeometry(5.2, 0.55, 6, 18),
+                gearMat,
+              );
+              ring.rotation.x = Math.PI / 2;
+              b.grp.add(ring);
+              b.orbiters.push({
+                m: ring,
+                baseA: 0,
+                rad: 0,
+                yOff: 4.3,
+                orbit: 0,
+                self: 1.3,
+                bob: 1,
+              });
+              for (let i = 0; i < 7; i++) {
+                const a = (i / 7) * Math.PI * 2;
+                const sp = new THREE.Mesh(
+                  new THREE.ConeGeometry(0.08, 1.3, 4),
+                  new THREE.MeshStandardMaterial({
+                    color: 0x8a3a14,
+                    metalness: 0.7,
+                    roughness: 0.4,
+                    emissive: 0x401400,
+                  }),
+                );
+                sp.position.set(Math.cos(a) * 0.7, 0.7, Math.sin(a) * 0.7);
+                sp.rotation.x = Math.cos(a) * 0.5;
+                sp.rotation.z = -Math.sin(a) * 0.5;
+                body.add(sp);
+              }
+            },
+          },
+          {
+            name: "THE CHORUS",
+            sub: "TEN THOUSAND THROATS",
+            size: 3.9,
+            bodyY: 4.1,
+            scaleVec: [1.1, 0.92, 1.1],
+            moveSpeed: 2.3,
+            color: 0x2c5418,
+            emissive: 0x0c2004,
+            rage: 0x3a7010,
+            emHurt: 0x80e020,
+            coreColor: 0x9aff40,
+            glow: 0x7aff30,
+            detail: 3,
+            lump: 0.6,
+            intro: "spiral",
+            introDur: 3.5,
+            killTitle: "SILENCED",
+            killSub: "EVERY THROAT AT ONCE",
+            phaseSub: ["IT MULTIPLIES", "ALL OF THEM SCREAM"],
+            cd: [2.2, 1.8, 1.3],
+            attacks: {
+              1: [bossSummon, bossQuake],
+              2: [bossSummon, bossQuake, bossSpit],
+              3: [bossSummon, bossQuake, bossPillars, bossMeteors],
+            },
+            adorn(body, b) {
+              const blobMat = new THREE.MeshStandardMaterial({
+                color: 0x244a14,
+                emissive: 0x123006,
+                roughness: 0.6,
+                flatShading: true,
+              });
+              for (let i = 0; i < 5; i++) {
+                const blob = new THREE.Mesh(
+                  lumpify(
+                    new THREE.IcosahedronGeometry(1.0, 1),
+                    0.5,
+                    i * 4 + 2,
+                  ),
+                  blobMat,
+                );
+                const eye = new THREE.Mesh(
+                  new THREE.SphereGeometry(0.18, 6, 5),
+                  new THREE.MeshBasicMaterial({ color: b.def.coreColor }),
+                );
+                eye.position.set(0, 0, -1);
+                blob.add(eye);
+                b.grp.add(blob);
+                b.orbiters.push({
+                  m: blob,
+                  baseA: (i / 5) * Math.PI * 2,
+                  rad: 5.2,
+                  yOff: 4.0,
+                  orbit: 0.8,
+                  self: 1.4,
+                  bob: 2.0,
+                });
+              }
+            },
+          },
+          {
+            name: "VOIDSPAWN",
+            sub: "WHAT WAITS AT THE BOTTOM",
+            size: 5.1,
+            bodyY: 5.3,
+            scaleVec: [1, 1, 1],
+            moveSpeed: 1.7,
+            color: 0x141420,
+            emissive: 0x02021a,
+            rage: 0x101040,
+            emHurt: 0x4060ff,
+            coreColor: 0x60e0ff,
+            glow: 0x60e0ff,
+            detail: 4,
+            lump: 0.55,
+            intro: "skyfall",
+            introDur: 4.0,
+            killTitle: "SEALED",
+            killSub: "THE BOTTOM GOES DARK",
+            phaseSub: ["REALITY THINS", "THE END OF THE PIT"],
+            cd: [1.8, 1.5, 1.1],
+            attacks: {
+              1: [bossTeleport, bossRing],
+              2: [bossTeleport, bossRing, bossLaserSweep],
+              3: [
+                bossTeleport,
+                bossRing,
+                bossLaserSweep,
+                bossMeteors,
+                bossPillars,
+                bossQuake,
+              ],
+            },
+            adorn(body, b) {
+              const halo = new THREE.Mesh(
+                new THREE.TorusGeometry(7.2, 0.32, 8, 26),
+                new THREE.MeshBasicMaterial({
+                  color: b.def.coreColor,
+                  transparent: true,
+                  opacity: 0.75,
+                }),
+              );
+              halo.rotation.x = 1.2;
+              b.grp.add(halo);
+              b.orbiters.push({
+                m: halo,
+                baseA: 0,
+                rad: 0,
+                yOff: 5.2,
+                orbit: 0,
+                self: 0.5,
+                bob: 0.6,
+              });
+              const shardMat = new THREE.MeshStandardMaterial({
+                color: 0x0a0a16,
+                emissive: 0x203060,
+                roughness: 0.3,
+                flatShading: true,
+              });
+              for (let i = 0; i < 7; i++) {
+                const sh = new THREE.Mesh(
+                  new THREE.IcosahedronGeometry(0.8, 0),
+                  shardMat,
+                );
+                b.grp.add(sh);
+                b.orbiters.push({
+                  m: sh,
+                  baseA: (i / 7) * Math.PI * 2,
+                  rad: 6.6,
+                  yOff: 5.0,
+                  orbit: 1.1,
+                  self: 2.2,
+                  bob: 1.6,
+                });
+              }
+            },
+          },
+        ];
+        function spawnBoss() {
+          const c = zc(currentSector);
+          const def = BOSS_DEFS[bossCount % BOSS_DEFS.length];
+          const grp = new THREE.Group();
+          const geo = lumpify(
+            new THREE.IcosahedronGeometry(1, def.detail),
+            def.lump,
+            bossCount * 7 + 3,
+          );
+          const mat = new THREE.MeshStandardMaterial({
+            color: def.color,
+            roughness: def.metal ? 0.32 : 0.5,
+            metalness: def.metal || 0,
+            emissive: def.emissive,
+            flatShading: true,
+          });
+          const body = new THREE.Mesh(geo, mat);
+          body.castShadow = true;
+          body.position.y = def.bodyY;
+          body.scale.setScalar(def.size);
+          grp.add(body);
+          dressFlesh(body, true);
           const core = new THREE.Mesh(
             new THREE.SphereGeometry(0.34, 10, 8),
-            new THREE.MeshBasicMaterial({ color: 0xff2040 }),
+            new THREE.MeshBasicMaterial({ color: def.coreColor }),
           );
           core.position.set(0, 0, -0.95);
           body.add(core);
-          const glow = new THREE.PointLight(0xff2040, 2.5, 30);
+          const glow = new THREE.PointLight(def.glow, 2.6, 34);
           glow.position.y = 5;
           grp.add(glow);
           grp.position.set(0, 0, c - 8);
           scene.add(grp);
-          const nm = BOSS_NAMES[bossCount % BOSS_NAMES.length];
           const maxHp = 300 + bossCount * 160;
           boss = {
             grp,
@@ -2873,44 +3309,43 @@
             mat,
             core,
             glow,
+            def,
             hp: maxHp,
             maxHp,
             phase: 1,
             dead: false,
             t: 0,
-            atkCd: 2.5,
+            atkCd: def.cd[0],
             charging: 0,
             chargeDir: new V(),
             hurt: 0,
-            name: nm[0],
-            sub: nm[1],
-            moveSpeed: 2.2,
-            baseY: 0,
+            name: def.name,
+            sub: def.sub,
+            moveSpeed: def.moveSpeed,
+            size: def.size,
+            bodyY: def.bodyY,
+            sv: def.scaleVec,
+            rad: def.size * 1.02 + 0.3,
+            orbiters: [],
           };
+          def.adorn(body, boss);
           bossCount++;
-          document.getElementById("bossname").textContent = nm[0];
+          document.getElementById("bossname").textContent = def.name;
           document.getElementById("bossbar").style.display = "block";
           document.getElementById("bossfill").style.width = "100%";
-          document.getElementById("objtext").textContent = "SLAY " + nm[0];
-          // ---- intro cutscene: orbit the monster ----
+          document.getElementById("objtext").textContent = "SLAY " + def.name;
+          if (def.intro === "rise") grp.position.y = -13;
+          // ---- intro cutscene: a bespoke camera move per boss ----
           startCutscene(
-            3.2,
+            def.introDur,
             (k, dtc) => {
               const bp = boss.grp.position;
-              const a = k * Math.PI * 1.6 - 0.6;
-              camera.position.set(
-                bp.x + Math.cos(a) * 13,
-                4 + k * 5,
-                bp.z + Math.sin(a) * 13,
-              );
-              camera.lookAt(bp.x, 4, bp.z);
-              camera.fov = 52 + Math.sin(k * Math.PI) * 10;
-              camera.updateProjectionMatrix();
-              boss.body.rotation.y += dtc * 0.5;
-              if (k > 0.25 && k < 0.3) showBossTitle(nm[0], nm[1]);
+              BOSS_INTROS[def.intro](k, dtc, bp, boss);
+              if (k > 0.3 && k < 0.36) showBossTitle(def.name, def.sub);
             },
             () => {
               hideBossTitle();
+              boss.grp.position.y = 0;
               camera.fov = 60;
               camera.updateProjectionMatrix();
               setPerspective("top", true);
@@ -2950,9 +3385,12 @@
               );
               camera.lookAt(bp.x, 4.5, bp.z);
               if (k > 0.15 && k < 0.2)
-                showBossTitle("PHASE " + p, p === 2 ? "IT LEARNS" : "IT RAGES");
-              boss.body.scale.setScalar(
-                4.2 * (1 + Math.sin(k * Math.PI) * 0.12),
+                showBossTitle("PHASE " + p, boss.def.phaseSub[p - 2]);
+              const s2 = boss.size * (1 + Math.sin(k * Math.PI) * 0.12);
+              boss.body.scale.set(
+                s2 * boss.sv[0],
+                s2 * boss.sv[1],
+                s2 * boss.sv[2],
               );
             },
             () => {
@@ -2960,8 +3398,10 @@
               // THE MOVE SHIFT: perspective flips with each phase
               setPerspective(mode === "fps" ? "top" : "fps");
               boss.atkCd = 1;
-              boss.mat.emissive.setHex(p === 3 ? 0x701020 : 0x300010);
-              if (p === 3) boss.moveSpeed = 3.6;
+              boss.mat.emissive.setHex(
+                p === 3 ? boss.def.rage : boss.def.emissive,
+              );
+              if (p === 3) boss.moveSpeed = boss.def.moveSpeed * 1.6;
             },
           );
         }
@@ -2993,7 +3433,7 @@
               if (Math.random() < 0.25)
                 spawnGibs(bp.x, 3, bp.z, reduceFx ? 2 : 4, true);
               if (k > 0.4 && k < 0.45)
-                showBossTitle("OBLITERATED", "THE PIT REMEMBERS");
+                showBossTitle(boss.def.killTitle, boss.def.killSub);
             },
             () => {
               hideBossTitle();
@@ -3027,13 +3467,28 @@
           // look + idle pulse
           b.grp.lookAt(pp.x, 0, pp.z);
           const pul = 1 + Math.sin(b.t * 5) * 0.05;
-          b.body.scale.setScalar(4.2 * pul);
-          b.body.position.y = 4.4 + Math.sin(b.t * 2.2) * 0.25;
-          b.core.material.color.setHex(b.hurt > 0 ? 0xffffff : 0xff2040);
+          b.body.scale.set(
+            b.size * pul * b.sv[0],
+            b.size * pul * b.sv[1],
+            b.size * pul * b.sv[2],
+          );
+          b.body.position.y = b.bodyY + Math.sin(b.t * 2.2) * 0.25;
+          b.core.material.color.setHex(b.hurt > 0 ? 0xffffff : b.def.coreColor);
           if (b.hurt > 0) {
             b.hurt -= dt;
-            b.mat.emissive.setHex(0xa01020);
-          } else b.mat.emissive.setHex(b.phase === 3 ? 0x701020 : 0x300010);
+            b.mat.emissive.setHex(b.def.emHurt);
+          } else
+            b.mat.emissive.setHex(b.phase === 3 ? b.def.rage : b.def.emissive);
+          // animate orbiting adornments (rings, tendrils, shards, choir-blobs)
+          for (const o of b.orbiters) {
+            const a = o.baseA + b.t * o.orbit;
+            o.m.position.set(
+              Math.cos(a) * o.rad,
+              o.yOff + Math.sin(b.t * o.bob + o.baseA) * 0.5,
+              Math.sin(a) * o.rad,
+            );
+            o.m.rotation.y += dt * o.self;
+          }
           if (Math.random() < dt * 2)
             spawnBlood(
               bp.x + (Math.random() * 4 - 2),
@@ -3047,7 +3502,7 @@
             b.charging -= dt;
             b.grp.position.addScaledVector(b.chargeDir, 16 * dt);
             if (Math.random() < dt * 8) splat(bp.x, bp.z, 0.8);
-            if (dist < 4.5) {
+            if (dist < b.rad) {
               damagePlayer(25);
               b.charging = 0;
               shake = 1;
@@ -3055,30 +3510,16 @@
             return;
           }
           // stalk
-          if (dist > 6) b.grp.position.addScaledVector(dir, b.moveSpeed * dt);
+          if (dist > b.rad + 1.5)
+            b.grp.position.addScaledVector(dir, b.moveSpeed * dt);
           // contact damage
-          if (dist < 4.6) damagePlayer(22 * dt * 2.5);
-          // attacks
+          if (dist < b.rad) damagePlayer(22 * dt * 2.5);
+          // attacks: draw from this boss's phase-specific kit
           b.atkCd -= dt;
           if (b.atkCd <= 0) {
-            const p = b.phase;
-            const roll = Math.random();
-            if (p === 1) {
-              if (roll < 0.5) bossSlam();
-              else bossCharge();
-              b.atkCd = 2.6;
-            } else if (p === 2) {
-              if (roll < 0.4) bossSpit();
-              else if (roll < 0.7) bossSummon();
-              else bossSlam();
-              b.atkCd = 2.2;
-            } else {
-              if (roll < 0.3) bossSpit();
-              else if (roll < 0.5) bossCharge();
-              else if (roll < 0.7) bossMeteors();
-              else bossSlam();
-              b.atkCd = 1.5;
-            }
+            const pool = b.def.attacks[b.phase];
+            pool[Math.floor(Math.random() * pool.length)]();
+            b.atkCd = b.def.cd[b.phase - 1];
           }
         }
         function bossSlam() {
@@ -3158,6 +3599,153 @@
               addTelegraph(x, z, 3.6, 1, () => explode(x, z, 3.6, 4, false));
             }, i * 350);
           }
+        }
+        // radial acid burst — the eldritch bullet-hell ring
+        function bossRing() {
+          const from = boss.grp.position.clone().setY(3.5);
+          const n = 12;
+          for (let i = 0; i < n; i++) {
+            const a = (i / n) * Math.PI * 2 + boss.t * 0.6;
+            const to = from
+              .clone()
+              .add(new V(Math.cos(a) * 12, 0, Math.sin(a) * 12));
+            spitAcid(from, to, 12);
+          }
+        }
+        // sweeping rail fan — Scrapmaw / Voidspawn signature
+        function bossLaserSweep() {
+          sfx.slamWarn();
+          const bp = boss.grp.position.clone().setY(4);
+          const base =
+            Math.atan2(player.position.z - bp.z, player.position.x - bp.x) -
+            0.95;
+          const N = 7,
+            col = boss.def.glow;
+          for (let i = 0; i < N; i++) {
+            setTimeout(() => {
+              if (!boss || boss.dead || !playing) return;
+              const a = base + i * (1.9 / N);
+              const d = new V(Math.cos(a), 0, Math.sin(a));
+              railBeamFx(bp, bp.clone().addScaledVector(d, 60), col);
+              sfx.rail();
+              const toP = new V().subVectors(player.position, bp).setY(0);
+              const proj = toP.dot(d);
+              if (
+                proj > 0 &&
+                toP.clone().addScaledVector(d, -proj).length() < 1.8
+              )
+                damagePlayer(16);
+            }, i * 130);
+          }
+        }
+        // erupting bone spikes around the player — the King's court
+        function bossPillars() {
+          const cx = player.position.x,
+            cz = player.position.z;
+          sfx.roar();
+          for (let i = 0; i < 6; i++) {
+            const a = (i / 6) * Math.PI * 2 + Math.random() * 0.3;
+            const x = cx + Math.cos(a) * 6,
+              z = cz + Math.sin(a) * 6;
+            setTimeout(() => {
+              if (!playing) return;
+              sfx.slamWarn();
+              addTelegraph(
+                x,
+                z,
+                2.8,
+                0.75,
+                () => {
+                  sfx.slam();
+                  shake = Math.min(shake + 0.4, 1.2);
+                  const spike = new THREE.Mesh(
+                    new THREE.ConeGeometry(1.1, 7, 6),
+                    new THREE.MeshStandardMaterial({
+                      color: 0xd8cfc0,
+                      roughness: 0.6,
+                      transparent: true,
+                      opacity: 1,
+                      emissive: 0x201810,
+                    }),
+                  );
+                  spike.position.set(x, 3.4, z);
+                  scene.add(spike);
+                  beams.push({ l: spike, life: 0.9 });
+                  spawnBlood(x, 1, z, reduceFx ? 10 : 30, 6);
+                  if (
+                    Math.hypot(player.position.x - x, player.position.z - z) <
+                    2.9
+                  )
+                    damagePlayer(20);
+                },
+                0xffe080,
+              );
+            }, i * 110);
+          }
+        }
+        // cascading shockwave rings rolling outward — the Chorus quake
+        function bossQuake() {
+          const bp = boss.grp.position.clone();
+          sfx.roar();
+          shake = 1;
+          for (let r = 0; r < 5; r++) {
+            const rad = 5 + r * 4;
+            setTimeout(() => {
+              if (!boss || boss.dead) return;
+              addTelegraph(
+                bp.x,
+                bp.z,
+                rad,
+                0.5,
+                () => {
+                  sfx.slam();
+                  const pd = Math.hypot(
+                    player.position.x - bp.x,
+                    player.position.z - bp.z,
+                  );
+                  if (Math.abs(pd - rad) < 2.2) damagePlayer(15);
+                  scorch(
+                    bp.x + (Math.random() * 4 - 2),
+                    bp.z + (Math.random() * 4 - 2),
+                    2.2,
+                  );
+                },
+                boss.def.glow,
+              );
+            }, r * 260);
+          }
+        }
+        // blink across the arena and crash down next to the player
+        function bossTeleport() {
+          const bp = boss.grp.position;
+          spawnBlood(bp.x, 3, bp.z, reduceFx ? 20 : 60, 7);
+          sfx.phase();
+          const c = zc(currentSector);
+          const a = Math.random() * Math.PI * 2;
+          const nx = Math.max(
+            Math.min(player.position.x + Math.cos(a) * 7, S - 3),
+            -(S - 3),
+          );
+          const nz = Math.max(
+            Math.min(player.position.z + Math.sin(a) * 7, c + S - 3),
+            c - S + 3,
+          );
+          setTimeout(() => {
+            if (!boss || boss.dead) return;
+            boss.grp.position.set(nx, 0, nz);
+            spawnBlood(nx, 3, nz, reduceFx ? 20 : 60, 7);
+            sfx.roar();
+            shake = 0.8;
+            addTelegraph(nx, nz, 8, 0.7, () => {
+              if (!boss || boss.dead) return;
+              sfx.slam();
+              scorch(nx, nz, 6);
+              if (
+                Math.hypot(player.position.x - nx, player.position.z - nz) < 8
+              )
+                damagePlayer(20);
+            });
+          }, 250);
         }
 
         // ================= CUTSCENE SYSTEM =================
