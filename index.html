@@ -730,6 +730,142 @@
           },
         };
 
+        // ===== PROCEDURAL BOSS MUSIC (per-boss spooky generative score) =====
+        // Each boss carries a `music` recipe (scale, tempo, timbres, density).
+        // A seeded RNG drives an evolving motif so every fight sounds distinct.
+        function mulberry32(a) {
+          return function () {
+            a |= 0;
+            a = (a + 0x6d2b79f5) | 0;
+            let t = Math.imul(a ^ (a >>> 15), 1 | a);
+            t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+            return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+          };
+        }
+        const MUSIC = {
+          timer: null,
+          gain: null,
+          drones: [],
+          step: 0,
+          rng: null,
+        };
+        function mtone(freq, dur, type, vol, detune) {
+          if (!actx || !MUSIC.gain) return;
+          const t0 = actx.currentTime;
+          const o = actx.createOscillator(),
+            g = actx.createGain();
+          o.type = type;
+          o.frequency.value = freq;
+          if (detune) o.detune.value = detune;
+          g.gain.setValueAtTime(0.0001, t0);
+          g.gain.exponentialRampToValueAtTime(vol, t0 + 0.03);
+          g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+          o.connect(g);
+          g.connect(MUSIC.gain);
+          o.start(t0);
+          o.stop(t0 + dur + 0.05);
+        }
+        function startBossMusic(def) {
+          if (!actx) return;
+          stopBossMusic(true);
+          const m = def.music;
+          if (!MUSIC.gain) {
+            MUSIC.gain = actx.createGain();
+            MUSIC.gain.connect(master);
+          }
+          const t = actx.currentTime;
+          MUSIC.gain.gain.cancelScheduledValues(t);
+          MUSIC.gain.gain.setValueAtTime(0.0001, t);
+          MUSIC.gain.gain.exponentialRampToValueAtTime(m.vol, t + 2.5);
+          // sustained drones — the bed of dread
+          for (const d of m.drones) {
+            const o = actx.createOscillator(),
+              g = actx.createGain();
+            o.type = d.type;
+            o.frequency.value = m.root * Math.pow(2, d.semi / 12);
+            if (d.detune) o.detune.value = d.detune;
+            g.gain.value = d.gain;
+            o.connect(g);
+            g.connect(MUSIC.gain);
+            o.start();
+            MUSIC.drones.push(o);
+            if (d.lfo) {
+              // slow pitch wobble — seasick, unnatural
+              const lo = actx.createOscillator(),
+                lg = actx.createGain();
+              lo.type = "sine";
+              lo.frequency.value = d.lfo;
+              lg.gain.value = d.lfoAmt || 5;
+              lo.connect(lg);
+              lg.connect(o.frequency);
+              lo.start();
+              MUSIC.drones.push(lo);
+            }
+          }
+          MUSIC.step = 0;
+          MUSIC.rng = mulberry32((def.musicSeed || 7) * 2654435761);
+          const stepMs = 60000 / m.bpm / (m.div || 2);
+          MUSIC.timer = setInterval(() => bossMusicStep(m), stepMs);
+        }
+        function bossMusicStep(m) {
+          if (!actx || muted) {
+            MUSIC.step++;
+            return;
+          }
+          const rng = MUSIC.rng,
+            s = MUSIC.step++;
+          const beat = s % m.pattern;
+          // bass pulse on the downbeats
+          if (beat % m.bassEvery === 0)
+            mtone(
+              m.root * Math.pow(2, (m.scale[0] - 12) / 12),
+              0.55,
+              m.bassWave,
+              0.5,
+            );
+          // eerie melody notes, sparse to dense per recipe
+          if (rng() < m.density) {
+            const deg = m.scale[Math.floor(rng() * m.scale.length)];
+            mtone(
+              m.root * Math.pow(2, (deg + 12 * (m.melOct || 1)) / 12),
+              0.3 + rng() * 0.6,
+              m.melWave,
+              m.melVol,
+              (rng() * 2 - 1) * (m.detune || 0),
+            );
+          }
+          // percussion — heartbeat / machine / war-drum
+          if (m.percEvery && beat % m.percEvery === 0)
+            noiseHit(m.percDur || 0.18, m.percVol || 0.3, m.percFilt || 600);
+        }
+        function stopBossMusic(instant) {
+          if (MUSIC.timer) {
+            clearInterval(MUSIC.timer);
+            MUSIC.timer = null;
+          }
+          if (MUSIC.gain && actx) {
+            const t = actx.currentTime;
+            MUSIC.gain.gain.cancelScheduledValues(t);
+            try {
+              MUSIC.gain.gain.setValueAtTime(
+                Math.max(MUSIC.gain.gain.value, 0.0001),
+                t,
+              );
+            } catch (e) {}
+            MUSIC.gain.gain.exponentialRampToValueAtTime(
+              0.0001,
+              t + (instant ? 0.05 : 1.3),
+            );
+          }
+          const drones = MUSIC.drones;
+          MUSIC.drones = [];
+          for (const o of drones) {
+            try {
+              o.stop(actx.currentTime + (instant ? 0.06 : 1.5));
+            } catch (e) {}
+          }
+        }
+
         // ================= RENDERER / SCENE =================
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -2936,6 +3072,31 @@
             killTitle: "OBLITERATED",
             killSub: "THE PIT REMEMBERS",
             phaseSub: ["IT LEARNS", "IT RAGES"],
+            musicSeed: 11,
+            // brutal phrygian dirge — low saw drone, war-drum, flat-2nd menace
+            music: {
+              root: 73.42,
+              scale: [0, 1, 3, 5, 7, 8, 10],
+              bpm: 84,
+              div: 2,
+              pattern: 8,
+              bassEvery: 4,
+              bassWave: "sawtooth",
+              melWave: "square",
+              melOct: 1,
+              melVol: 0.18,
+              density: 0.4,
+              detune: 8,
+              vol: 0.5,
+              percEvery: 2,
+              percDur: 0.22,
+              percVol: 0.3,
+              percFilt: 380,
+              drones: [
+                { type: "sawtooth", semi: 0, gain: 0.1 },
+                { type: "sawtooth", semi: 7, gain: 0.05, detune: 6 },
+              ],
+            },
             cd: [2.6, 2.2, 1.5],
             attacks: {
               1: [bossSlam, bossCharge],
@@ -2966,6 +3127,31 @@
             killTitle: "DETHRONED",
             killSub: "THE CROWN ROLLS FREE",
             phaseSub: ["THE COURT GATHERS", "LONG LIVE NOTHING"],
+            musicSeed: 23,
+            // regal aeolian march — square stabs, triangle bells, throne-room drum
+            music: {
+              root: 110,
+              scale: [0, 2, 3, 5, 7, 8, 10],
+              bpm: 96,
+              div: 2,
+              pattern: 8,
+              bassEvery: 4,
+              bassWave: "square",
+              melWave: "triangle",
+              melOct: 1,
+              melVol: 0.16,
+              density: 0.45,
+              detune: 4,
+              vol: 0.48,
+              percEvery: 4,
+              percDur: 0.25,
+              percVol: 0.34,
+              percFilt: 500,
+              drones: [
+                { type: "sawtooth", semi: 0, gain: 0.09 },
+                { type: "square", semi: 12, gain: 0.03 },
+              ],
+            },
             cd: [2.4, 2.1, 1.6],
             attacks: {
               1: [bossSummon, bossPillars, bossCharge],
@@ -3007,6 +3193,28 @@
             killTitle: "UNMADE",
             killSub: "IT WALKS NO MORE",
             phaseSub: ["THE WALLS WEEP", "THE CHOIR SCREAMS"],
+            musicSeed: 37,
+            // dreamlike whole-tone void — sine pads, tritone, seasick pitch wobble
+            music: {
+              root: 65.41,
+              scale: [0, 2, 4, 6, 8, 10],
+              bpm: 60,
+              div: 2,
+              pattern: 8,
+              bassEvery: 8,
+              bassWave: "sine",
+              melWave: "sine",
+              melOct: 2,
+              melVol: 0.14,
+              density: 0.5,
+              detune: 12,
+              vol: 0.55,
+              drones: [
+                { type: "sine", semi: 0, gain: 0.12 },
+                { type: "sine", semi: 6, gain: 0.06 },
+                { type: "sine", semi: 13, gain: 0.04, lfo: 0.18, lfoAmt: 8 },
+              ],
+            },
             cd: [2.2, 1.9, 1.4],
             attacks: {
               1: [bossSpit, bossRing],
@@ -3084,6 +3292,31 @@
             killTitle: "SCRAPPED",
             killSub: "RUST CLAIMS ALL ENGINES",
             phaseSub: ["GEARS BITE DOWN", "MELTDOWN"],
+            musicSeed: 41,
+            // fast industrial locrian — driving saw, metallic clank on every step
+            music: {
+              root: 82.41,
+              scale: [0, 1, 3, 5, 6, 8, 10],
+              bpm: 132,
+              div: 2,
+              pattern: 8,
+              bassEvery: 2,
+              bassWave: "sawtooth",
+              melWave: "square",
+              melOct: 1,
+              melVol: 0.15,
+              density: 0.6,
+              detune: 15,
+              vol: 0.44,
+              percEvery: 1,
+              percDur: 0.1,
+              percVol: 0.26,
+              percFilt: 2600,
+              drones: [
+                { type: "sawtooth", semi: 0, gain: 0.09 },
+                { type: "sawtooth", semi: 6, gain: 0.06, detune: 14 },
+              ],
+            },
             cd: [2.3, 1.9, 1.4],
             attacks: {
               1: [bossLaserSweep, bossCharge],
@@ -3150,6 +3383,33 @@
             killTitle: "SILENCED",
             killSub: "EVERY THROAT AT ONCE",
             phaseSub: ["IT MULTIPLIES", "ALL OF THEM SCREAM"],
+            musicSeed: 53,
+            // dissonant swarm — four detuned saws clustering at the minor 2nd
+            music: {
+              root: 87.31,
+              scale: [0, 1, 2, 3, 5, 6, 8],
+              bpm: 108,
+              div: 2,
+              pattern: 8,
+              bassEvery: 4,
+              bassWave: "sawtooth",
+              melWave: "sawtooth",
+              melOct: 1,
+              melVol: 0.12,
+              density: 0.72,
+              detune: 20,
+              vol: 0.42,
+              percEvery: 2,
+              percDur: 0.14,
+              percVol: 0.22,
+              percFilt: 900,
+              drones: [
+                { type: "sawtooth", semi: 0, gain: 0.07 },
+                { type: "sawtooth", semi: 0, gain: 0.06, detune: 11 },
+                { type: "sawtooth", semi: 1, gain: 0.05, detune: -9 },
+                { type: "sawtooth", semi: 0, gain: 0.05, detune: -22 },
+              ],
+            },
             cd: [2.2, 1.8, 1.3],
             attacks: {
               1: [bossSummon, bossQuake],
@@ -3211,6 +3471,39 @@
             killTitle: "SEALED",
             killSub: "THE BOTTOM GOES DARK",
             phaseSub: ["REALITY THINS", "THE END OF THE PIT"],
+            musicSeed: 67,
+            // cosmic diminished dread — sub-bass sines, eerie high wobble, deep tolls
+            music: {
+              root: 41.2,
+              scale: [0, 2, 3, 5, 6, 8, 9, 11],
+              bpm: 72,
+              div: 2,
+              pattern: 8,
+              bassEvery: 4,
+              bassWave: "sine",
+              melWave: "sine",
+              melOct: 2,
+              melVol: 0.13,
+              density: 0.36,
+              detune: 25,
+              vol: 0.55,
+              percEvery: 8,
+              percDur: 0.5,
+              percVol: 0.4,
+              percFilt: 200,
+              drones: [
+                { type: "sine", semi: 0, gain: 0.13 },
+                { type: "sine", semi: -12, gain: 0.1 },
+                {
+                  type: "triangle",
+                  semi: 24,
+                  gain: 0.03,
+                  lfo: 0.13,
+                  lfoAmt: 10,
+                },
+                { type: "sine", semi: 6, gain: 0.05 },
+              ],
+            },
             cd: [1.8, 1.5, 1.1],
             attacks: {
               1: [bossTeleport, bossRing],
@@ -3355,6 +3648,7 @@
           sfx.roar();
           shake = 1.2;
           spawnBlood(grp.position.x, 3, grp.position.z, reduceFx ? 40 : 120, 8);
+          startBossMusic(def);
         }
         function damageBoss(d) {
           if (!boss || boss.dead || cut.active) return;
@@ -3410,6 +3704,7 @@
           boss.dead = true;
           sfx.bigsquish();
           sfx.roar();
+          stopBossMusic();
           const bp = boss.grp.position.clone();
           startCutscene(
             2.6,
@@ -3944,7 +4239,7 @@
             const proj = toB.dot(dir);
             if (
               proj > 0 &&
-              toB.clone().addScaledVector(dir, -proj).length() < 4.2
+              toB.clone().addScaledVector(dir, -proj).length() < boss.rad
             ) {
               damageBoss(dmg);
               spawnBlood(bp.x, 3, bp.z, reduceFx ? 12 : 34, 5);
@@ -4278,6 +4573,7 @@
         }
         function gameOver() {
           playing = false;
+          stopBossMusic(true);
           if (document.exitPointerLock) document.exitPointerLock();
           toggleTree(false);
           cut.active = false;
@@ -4471,7 +4767,8 @@
                 if (
                   bp.distanceToSquared(
                     new V(boss.grp.position.x, 1.1, boss.grp.position.z),
-                  ) < 18
+                  ) <
+                  boss.rad * boss.rad
                 ) {
                   hit = true;
                   if (b.explosive)
