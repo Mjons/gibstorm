@@ -475,6 +475,287 @@
       .hidden {
         display: none !important;
       }
+
+      /* ============ COLLECTIBLE CARDS (SMUDGIES TCG) ============ */
+      #cardModal,
+      #collection {
+        position: fixed;
+        inset: 0;
+        z-index: 30;
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: radial-gradient(
+          ellipse at center,
+          rgba(20, 8, 14, 0.82),
+          rgba(4, 2, 4, 0.96)
+        );
+        backdrop-filter: blur(3px);
+        perspective: 1100px;
+      }
+      #cardModal.open,
+      #collection.open {
+        display: flex;
+      }
+      /* card modal sits above the collection grid so the inspector can open over it */
+      #cardModal {
+        z-index: 34;
+      }
+      #confetti {
+        position: fixed;
+        inset: 0;
+        z-index: 31;
+        pointer-events: none;
+      }
+      #cardModal .award-tag {
+        position: relative;
+        z-index: 32;
+        font-size: clamp(20px, 4vw, 38px);
+        font-weight: bold;
+        letter-spacing: 8px;
+        color: var(--gold);
+        text-shadow: 0 0 26px rgba(255, 210, 74, 0.6);
+        margin-bottom: 4px;
+        text-align: center;
+      }
+      #cardModal .award-sub {
+        position: relative;
+        z-index: 32;
+        font-size: 12px;
+        letter-spacing: 5px;
+        color: #b9aeb4;
+        margin-bottom: 22px;
+        text-transform: uppercase;
+      }
+      /* the 3D-tilt holographic card */
+      .holo-card {
+        position: relative;
+        width: min(340px, 74vw);
+        aspect-ratio: 2 / 3;
+        border-radius: 18px;
+        transform-style: preserve-3d;
+        transition: transform 0.12s ease-out;
+        will-change: transform;
+        cursor: grab;
+        --mx: 50%;
+        --my: 50%;
+        --rar: var(--gold);
+      }
+      .holo-card img {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: 18px;
+        display: block;
+        backface-visibility: hidden;
+      }
+      /* foil glare layer driven by pointer */
+      .holo-card .glare {
+        position: absolute;
+        inset: 0;
+        border-radius: 18px;
+        background: radial-gradient(
+          circle at var(--mx) var(--my),
+          rgba(255, 255, 255, 0.55),
+          rgba(255, 255, 255, 0.08) 32%,
+          transparent 60%
+        );
+        mix-blend-mode: soft-light;
+        pointer-events: none;
+      }
+      /* rainbow holo sheen, only for rare+ */
+      .holo-card .holo {
+        position: absolute;
+        inset: 0;
+        border-radius: 18px;
+        opacity: 0;
+        background: linear-gradient(
+          115deg,
+          transparent 22%,
+          rgba(255, 0, 132, 0.5),
+          rgba(0, 231, 255, 0.5),
+          rgba(120, 255, 100, 0.5),
+          rgba(255, 220, 60, 0.5),
+          transparent 78%
+        );
+        background-size: 230% 230%;
+        background-position: var(--mx) var(--my);
+        mix-blend-mode: color-dodge;
+        pointer-events: none;
+        transition: opacity 0.2s;
+      }
+      .holo-card.foil .holo {
+        opacity: 0.45;
+      }
+      .holo-card .frame {
+        position: absolute;
+        inset: 0;
+        border-radius: 18px;
+        pointer-events: none;
+        box-shadow:
+          0 0 0 2px var(--rar),
+          0 18px 50px rgba(0, 0, 0, 0.7),
+          0 0 50px -6px var(--rar);
+      }
+      .card-meta {
+        position: relative;
+        z-index: 32;
+        text-align: center;
+        margin-top: 20px;
+      }
+      .card-meta .cname {
+        font-size: 20px;
+        letter-spacing: 4px;
+        font-weight: bold;
+        color: var(--bone);
+      }
+      .card-meta .crar {
+        font-size: 12px;
+        letter-spacing: 6px;
+        margin-top: 4px;
+        font-weight: bold;
+      }
+      .card-meta .cdupe {
+        font-size: 11px;
+        letter-spacing: 3px;
+        color: #8a7f86;
+        margin-top: 6px;
+        min-height: 14px;
+      }
+      .ui-btn {
+        pointer-events: auto;
+        font-family: inherit;
+        background: var(--blood);
+        border: none;
+        color: var(--bone);
+        font-size: 16px;
+        letter-spacing: 5px;
+        padding: 12px 34px;
+        cursor: pointer;
+        font-weight: bold;
+        margin-top: 26px;
+      }
+      .ui-btn:hover {
+        background: var(--blood-bright);
+        box-shadow: 0 0 24px var(--blood);
+      }
+      .ui-btn.ghost {
+        background: transparent;
+        border: 1px solid var(--steel);
+        color: #b9aeb4;
+      }
+      .ui-btn.ghost:hover {
+        background: #1a1016;
+        box-shadow: none;
+        color: var(--bone);
+      }
+      /* collection grid */
+      #collection .coll-head {
+        display: flex;
+        align-items: baseline;
+        gap: 18px;
+        margin-bottom: 18px;
+      }
+      #collection h2 {
+        letter-spacing: 8px;
+        color: var(--acid);
+        font-size: 26px;
+      }
+      #collection .coll-count {
+        color: var(--gold);
+        letter-spacing: 3px;
+        font-size: 14px;
+      }
+      #collGrid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+        gap: 14px;
+        width: min(920px, 92vw);
+        max-height: 66vh;
+        overflow-y: auto;
+        padding: 6px 10px 14px;
+      }
+      .card-cell {
+        position: relative;
+        aspect-ratio: 2 / 3;
+        border-radius: 10px;
+        overflow: hidden;
+        cursor: pointer;
+        border: 1px solid var(--steel);
+        background: #0d080b;
+        transition:
+          transform 0.12s,
+          box-shadow 0.12s;
+      }
+      .card-cell:hover {
+        transform: translateY(-4px) scale(1.03);
+        box-shadow: 0 8px 22px rgba(0, 0, 0, 0.6);
+      }
+      .card-cell img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+      .card-cell.locked img {
+        filter: brightness(0) saturate(0);
+        opacity: 0.5;
+      }
+      .card-cell.locked::after {
+        content: "?";
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 38px;
+        font-weight: bold;
+        color: #4a4048;
+      }
+      .card-cell .cell-dot {
+        position: absolute;
+        top: 6px;
+        right: 6px;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        box-shadow: 0 0 8px currentColor;
+      }
+      .card-cell .cell-ct {
+        position: absolute;
+        bottom: 4px;
+        right: 6px;
+        font-size: 11px;
+        font-weight: bold;
+        color: #fff;
+        text-shadow: 0 1px 2px #000;
+      }
+      #collectionBtn {
+        margin-top: 14px;
+      }
+      /* small in-game collection button on HUD */
+      #hudCollBtn {
+        position: fixed;
+        bottom: 14px;
+        right: 16px;
+        z-index: 8;
+        font-family: inherit;
+        background: rgba(13, 8, 11, 0.7);
+        border: 1px solid var(--steel);
+        color: #b9aeb4;
+        font-size: 11px;
+        letter-spacing: 3px;
+        padding: 8px 14px;
+        cursor: pointer;
+        font-weight: bold;
+      }
+      #hudCollBtn:hover {
+        color: var(--gold);
+        border-color: var(--gold);
+      }
     </style>
   </head>
   <body>
@@ -559,6 +840,7 @@
         >
       </div>
       <button id="startbtn">ENTER THE PIT</button>
+      <button id="collectionBtn" class="ui-btn ghost">COLLECTION</button>
       <label class="fx-toggle"
         ><input type="checkbox" id="reduceFx" /> reduce flashing / heavy FX
         (photosensitivity)</label
@@ -577,6 +859,37 @@
           width="260"
           height="80"
       /></a>
+    </div>
+
+    <button id="hudCollBtn" class="hidden">CARDS [C]</button>
+
+    <!-- collectible card award modal -->
+    <div id="cardModal">
+      <canvas id="confetti"></canvas>
+      <div class="award-tag" id="awardTag">CARD ACQUIRED</div>
+      <div class="award-sub" id="awardSub">A SMUDGIE JOINS YOUR COLLECTION</div>
+      <div class="holo-card" id="awardCard">
+        <img id="awardImg" alt="card" />
+        <div class="holo"></div>
+        <div class="glare"></div>
+        <div class="frame"></div>
+      </div>
+      <div class="card-meta">
+        <div class="cname" id="awardName"></div>
+        <div class="crar" id="awardRar"></div>
+        <div class="cdupe" id="awardDupe"></div>
+      </div>
+      <button id="awardClaim" class="ui-btn">CLAIM</button>
+    </div>
+
+    <!-- collection inventory -->
+    <div id="collection">
+      <div class="coll-head">
+        <h2>SMUDGIES</h2>
+        <span class="coll-count" id="collCount"></span>
+      </div>
+      <div id="collGrid"></div>
+      <button id="collClose" class="ui-btn ghost">CLOSE</button>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -1409,6 +1722,8 @@
           document.getElementById("objtext").textContent =
             "ADVANCE TO SECTOR " + (i + 2);
           shake = Math.min(shake + 0.4, 0.9);
+          // stage cleared -> reward a collectible card
+          awardCardForSector();
         }
         function walkable(x, z) {
           for (let i = 0; i <= maxSector; i++) {
@@ -4429,6 +4744,17 @@
         // ================= INPUT =================
         addEventListener("keydown", (e) => {
           keys[e.code] = true;
+          if (e.code === "Escape") {
+            if (cardOpen) closeCard();
+            else if (collectionOpen) closeCollection();
+            return;
+          }
+          if (e.code === "KeyC" && !cut.active && !cardOpen) {
+            if (collectionOpen) closeCollection();
+            else openCollection();
+            return;
+          }
+          if (cardOpen || collectionOpen) return;
           if (e.code === "Space") {
             e.preventDefault();
             if (playing && !treeOpen && !cut.active) bloodNova();
@@ -4460,6 +4786,7 @@
           ch.style.top = e.clientY + "px";
         });
         addEventListener("mousedown", () => {
+          if (cardOpen || collectionOpen) return; // modal handles its own clicks
           if (cut.active) {
             cut.t = cut.dur;
             return;
@@ -4489,6 +4816,298 @@
             document.getElementById("combo-x").textContent = "x" + combo;
           } else c.style.opacity = 0;
         }
+
+        // ================= COLLECTIBLE CARDS (SMUDGIES TCG) =================
+        // 16 trading cards; one is awarded each time a sector is cleared.
+        // Holographic tilt-to-inspect, confetti pop, persistent inventory.
+        const CARDS = [
+          { f: "smudgies-sponge-01-kaiju-oni", n: "ONI KAIJU", r: 3 },
+          { f: "smudgies-sponge-02-ghostrider-coin", n: "COIN REVENANT", r: 2 },
+          { f: "smudgies-sponge-03-samurai-katana", n: "KATANA SAMURAI", r: 1 },
+          {
+            f: "smudgies-sponge-04-knight-greatsword",
+            n: "GREATSWORD KNIGHT",
+            r: 1,
+          },
+          { f: "smudgies-sponge-05-swordsman-teal", n: "TEAL DUELIST", r: 0 },
+          {
+            f: "smudgies-sponge-06-gunslinger-revolver",
+            n: "REVOLVER SLINGER",
+            r: 1,
+          },
+          { f: "smudgies-sponge-07-darklord-crown", n: "THE DARK LORD", r: 3 },
+          {
+            f: "smudgies-sponge-08-ronin-fireblade",
+            n: "FIREBLADE RONIN",
+            r: 2,
+          },
+          { f: "smudgies-sponge-09-barbarian-club", n: "CLUB BARBARIAN", r: 0 },
+          { f: "smudgies-sponge-10-waterbender", n: "TIDE BENDER", r: 2 },
+          { f: "smudgies-sponge-11-brawler-electric", n: "VOLT BRAWLER", r: 1 },
+          { f: "smudgies-sponge-12-mage-orb", n: "ORB MAGE", r: 1 },
+          { f: "smudgies-sponge-13-kraken", n: "THE KRAKEN", r: 3 },
+          {
+            f: "smudgies-sponge-14-streetfighter-gold",
+            n: "GOLD STREETFIGHTER",
+            r: 2,
+          },
+          {
+            f: "smudgies-sponge-15-ronin-purpleflame",
+            n: "PURPLEFLAME RONIN",
+            r: 2,
+          },
+          {
+            f: "smudgies-sponge-16-emperor-parasol",
+            n: "PARASOL EMPEROR",
+            r: 3,
+          },
+        ];
+        const RARITY = [
+          { name: "COMMON", col: "#9fb0b8", foil: false },
+          { name: "RARE", col: "#4aa8ff", foil: true },
+          { name: "EPIC", col: "#c060ff", foil: true },
+          { name: "LEGENDARY", col: "#ffd24a", foil: true },
+        ];
+        const CARD_PATH = (f) => "smudge_tcg/" + f + ".webp";
+        let cardOpen = false,
+          collectionOpen = false,
+          cardMode = "award",
+          cardUnbind = null;
+        const COLL_KEY = "gibstorm_collection_v1";
+        let collection = loadCollection();
+        function loadCollection() {
+          try {
+            const raw = localStorage.getItem(COLL_KEY);
+            if (raw) {
+              const o = JSON.parse(raw);
+              return { counts: o.counts || {} };
+            }
+          } catch (e) {}
+          return { counts: {} };
+        }
+        function saveCollection() {
+          try {
+            localStorage.setItem(COLL_KEY, JSON.stringify(collection));
+          } catch (e) {}
+        }
+        function ownedCount() {
+          let n = 0;
+          for (let i = 0; i < CARDS.length; i++) if (collection.counts[i]) n++;
+          return n;
+        }
+        // pointer-driven 3D tilt + holo sheen; surface = element we listen on
+        function bindTilt(card, surface) {
+          function onMove(e) {
+            const r = card.getBoundingClientRect();
+            let px = (e.clientX - r.left) / r.width;
+            let py = (e.clientY - r.top) / r.height;
+            px = Math.max(0, Math.min(1, px));
+            py = Math.max(0, Math.min(1, py));
+            const rotY = (px - 0.5) * 30;
+            const rotX = (0.5 - py) * 30;
+            card.style.transform =
+              "rotateX(" + rotX + "deg) rotateY(" + rotY + "deg)";
+            card.style.setProperty("--mx", (px * 100).toFixed(1) + "%");
+            card.style.setProperty("--my", (py * 100).toFixed(1) + "%");
+          }
+          function reset() {
+            card.style.transform = "rotateX(0deg) rotateY(0deg)";
+            card.style.setProperty("--mx", "50%");
+            card.style.setProperty("--my", "50%");
+          }
+          surface.addEventListener("pointermove", onMove);
+          surface.addEventListener("pointerleave", reset);
+          card._unbind = () => {
+            surface.removeEventListener("pointermove", onMove);
+            surface.removeEventListener("pointerleave", reset);
+          };
+          reset();
+        }
+        // confetti
+        const confettiCanvas = document.getElementById("confetti");
+        const cctx = confettiCanvas.getContext("2d");
+        let confettiParts = [],
+          confettiRAF = 0;
+        function confettiBurst(colors) {
+          confettiCanvas.width = innerWidth;
+          confettiCanvas.height = innerHeight;
+          confettiParts = [];
+          const N = reduceFx ? 60 : 170;
+          for (let i = 0; i < N; i++) {
+            confettiParts.push({
+              x: innerWidth / 2 + (Math.random() - 0.5) * 240,
+              y: innerHeight * 0.42 - 40,
+              vx: (Math.random() - 0.5) * 10,
+              vy: -7 - Math.random() * 10,
+              g: 0.18 + Math.random() * 0.14,
+              s: 4 + Math.random() * 7,
+              rot: Math.random() * Math.PI,
+              vr: (Math.random() - 0.5) * 0.35,
+              col: colors[Math.floor(Math.random() * colors.length)],
+              life: 1,
+            });
+          }
+          if (!confettiRAF) confettiTick();
+        }
+        function confettiTick() {
+          cctx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+          let alive = 0;
+          for (const p of confettiParts) {
+            if (p.life <= 0) continue;
+            alive++;
+            p.vy += p.g;
+            p.x += p.vx;
+            p.y += p.vy;
+            p.vx *= 0.99;
+            p.rot += p.vr;
+            p.life -= 0.0055;
+            if (p.y > confettiCanvas.height + 24) p.life = 0;
+            cctx.save();
+            cctx.globalAlpha = Math.max(0, Math.min(1, p.life * 1.4));
+            cctx.translate(p.x, p.y);
+            cctx.rotate(p.rot);
+            cctx.fillStyle = p.col;
+            cctx.fillRect(-p.s / 2, -p.s / 2, p.s, p.s * 0.6);
+            cctx.restore();
+          }
+          if (alive > 0) confettiRAF = requestAnimationFrame(confettiTick);
+          else {
+            confettiRAF = 0;
+            cctx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+          }
+        }
+        // present a card: isNew true=new, false=dupe, null=view-only (collection)
+        function presentCard(idx, isNew, mode) {
+          cardMode = mode;
+          const c = CARDS[idx],
+            rar = RARITY[c.r];
+          const card = document.getElementById("awardCard");
+          document.getElementById("awardImg").src = CARD_PATH(c.f);
+          card.classList.toggle("foil", rar.foil);
+          card.style.setProperty("--rar", rar.col);
+          document.getElementById("awardName").textContent = c.n;
+          const rarEl = document.getElementById("awardRar");
+          rarEl.textContent = rar.name;
+          rarEl.style.color = rar.col;
+          const ct = collection.counts[idx] || 1;
+          document.getElementById("awardDupe").textContent =
+            ct > 1 ? "OWNED × " + ct : "";
+          const tag = document.getElementById("awardTag");
+          const sub = document.getElementById("awardSub");
+          const claim = document.getElementById("awardClaim");
+          if (mode === "view") {
+            tag.textContent = "INSPECTING";
+            sub.textContent = "MOVE TO TILT · WATCH THE FOIL CATCH LIGHT";
+            claim.textContent = "BACK";
+          } else {
+            tag.textContent = isNew ? "CARD ACQUIRED" : "DUPLICATE PULL";
+            sub.textContent = isNew
+              ? "A SMUDGIE JOINS YOUR COLLECTION"
+              : "YOU ALREADY OWN THIS ONE";
+            claim.textContent = "CLAIM";
+          }
+          const modal = document.getElementById("cardModal");
+          modal.classList.add("open");
+          cardOpen = true;
+          mouseDown = false;
+          if (pointerLocked && document.exitPointerLock)
+            document.exitPointerLock();
+          if (cardUnbind) cardUnbind();
+          bindTilt(card, modal);
+          cardUnbind = card._unbind;
+          if (mode !== "view") {
+            const pal = isNew
+              ? [rar.col, "#ffffff", "#ff4d88", "#41e7ff", "#b8ff2e"]
+              : ["#8a7f86", "#b9aeb4", rar.col];
+            confettiBurst(pal);
+            if (sfx.gold) sfx.gold();
+          } else if (sfx.ui) sfx.ui();
+        }
+        function closeCard() {
+          document.getElementById("cardModal").classList.remove("open");
+          if (cardUnbind) {
+            cardUnbind();
+            cardUnbind = null;
+          }
+          cardOpen = false; // if in view mode, collectionOpen keeps gameplay paused
+          if (sfx.ui) sfx.ui();
+        }
+        function awardCardForSector() {
+          const unowned = [];
+          for (let i = 0; i < CARDS.length; i++)
+            if (!collection.counts[i]) unowned.push(i);
+          let idx, isNew;
+          if (unowned.length) {
+            idx = unowned[Math.floor(Math.random() * unowned.length)];
+            isNew = true;
+          } else {
+            idx = Math.floor(Math.random() * CARDS.length);
+            isNew = false;
+          }
+          collection.counts[idx] = (collection.counts[idx] || 0) + 1;
+          saveCollection();
+          presentCard(idx, isNew, "award");
+        }
+        function buildCollGrid() {
+          const grid = document.getElementById("collGrid");
+          grid.innerHTML = "";
+          document.getElementById("collCount").textContent =
+            ownedCount() + " / " + CARDS.length;
+          for (let i = 0; i < CARDS.length; i++) {
+            const c = CARDS[i],
+              rar = RARITY[c.r];
+            const ct = collection.counts[i] || 0;
+            const cell = document.createElement("div");
+            cell.className = "card-cell" + (ct ? "" : " locked");
+            const img = document.createElement("img");
+            img.src = CARD_PATH(c.f);
+            img.alt = ct ? c.n : "locked";
+            img.loading = "lazy";
+            cell.appendChild(img);
+            if (ct) {
+              const dot = document.createElement("div");
+              dot.className = "cell-dot";
+              dot.style.color = rar.col;
+              cell.appendChild(dot);
+              if (ct > 1) {
+                const cc = document.createElement("div");
+                cc.className = "cell-ct";
+                cc.textContent = "×" + ct;
+                cell.appendChild(cc);
+              }
+              cell.addEventListener("click", () =>
+                presentCard(i, null, "view"),
+              );
+            }
+            grid.appendChild(cell);
+          }
+        }
+        function openCollection() {
+          buildCollGrid();
+          document.getElementById("collection").classList.add("open");
+          collectionOpen = true;
+          mouseDown = false;
+          if (pointerLocked && document.exitPointerLock)
+            document.exitPointerLock();
+          if (sfx.ui) sfx.ui();
+        }
+        function closeCollection() {
+          document.getElementById("collection").classList.remove("open");
+          collectionOpen = false;
+          if (sfx.ui) sfx.ui();
+        }
+        document
+          .getElementById("collectionBtn")
+          .addEventListener("click", openCollection);
+        document
+          .getElementById("collClose")
+          .addEventListener("click", closeCollection);
+        document
+          .getElementById("awardClaim")
+          .addEventListener("click", closeCard);
+        document
+          .getElementById("hudCollBtn")
+          .addEventListener("click", openCollection);
 
         // ================= FLOW =================
         const overlay = document.getElementById("overlay");
@@ -4565,6 +5184,7 @@
           player.position.set(0, 0, 0);
           overlay.classList.add("hidden");
           document.getElementById("hud").classList.remove("hidden");
+          document.getElementById("hudCollBtn").classList.remove("hidden");
           document.getElementById("crosshair").classList.remove("hidden");
           playing = true;
           setPerspective("top", true);
@@ -4576,9 +5196,12 @@
           stopBossMusic(true);
           if (document.exitPointerLock) document.exitPointerLock();
           toggleTree(false);
+          if (cardOpen) closeCard();
+          if (collectionOpen) closeCollection();
           cut.active = false;
           document.body.classList.remove("cinema");
           hideBossTitle();
+          document.getElementById("hudCollBtn").classList.add("hidden");
           document.getElementById("crosshair").classList.add("hidden");
           const fs = document.getElementById("finalscore");
           fs.style.display = "block";
@@ -4602,7 +5225,8 @@
           const slow = transitioning || cut.active;
           const dt = slow ? dtReal * 0.3 : dtReal;
           const t = clock.elapsedTime;
-          const gameplayOn = playing && !treeOpen && !cut.active;
+          const gameplayOn =
+            playing && !treeOpen && !cut.active && !cardOpen && !collectionOpen;
 
           if (gameplayOn) {
             const mv = new V();
