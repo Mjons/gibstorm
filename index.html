@@ -417,6 +417,22 @@
       #overlay .fx-toggle input {
         accent-color: var(--blood);
       }
+      #orynth-badge {
+        margin-top: 22px;
+        pointer-events: auto;
+        opacity: 0.92;
+        transition:
+          opacity 0.15s,
+          transform 0.15s;
+      }
+      #orynth-badge:hover {
+        opacity: 1;
+        transform: scale(1.04);
+      }
+      #orynth-badge img {
+        display: block;
+        border-radius: 6px;
+      }
       #finalscore {
         font-size: 22px;
         color: var(--acid);
@@ -550,6 +566,17 @@
       <label class="fx-toggle"
         ><input type="checkbox" id="muteChk" /> start muted</label
       >
+      <a
+        id="orynth-badge"
+        href="https://orynth.dev/projects/gibstorm"
+        target="_blank"
+        rel="noopener"
+        ><img
+          src="https://orynth.dev/api/badge/gibstorm?theme=light&style=default"
+          alt="Featured on Orynth"
+          width="260"
+          height="80"
+      /></a>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -804,6 +831,255 @@
           scene.add(m);
           acidPools.push({ m, x, z, r, life, t: Math.random() * 9 });
         }
+        // ================= DOORS: a different elaborate mechanism each gate =================
+        function buildDoor(i, color) {
+          const grp = new THREE.Group();
+          const DW = CORR_W,
+            DH = 6,
+            halfW = DW / 2;
+          const variant = ((i % 5) + 5) % 5;
+          const metal = new THREE.MeshStandardMaterial({
+            color: 0x23232b,
+            roughness: 0.4,
+            metalness: 0.85,
+          });
+          const trim = new THREE.MeshStandardMaterial({
+            color: 0x3a3a44,
+            roughness: 0.5,
+            metalness: 0.7,
+          });
+          const glow = new THREE.MeshStandardMaterial({
+            color,
+            emissive: color,
+            emissiveIntensity: 0.9,
+            roughness: 0.3,
+            metalness: 0.4,
+          });
+          const corem = new THREE.MeshBasicMaterial({ color });
+          const D = (geo, mat, x, y, z, rx = 0, ry = 0, rz = 0) => {
+            const m = new THREE.Mesh(geo, mat);
+            m.position.set(x, y, z);
+            m.rotation.set(rx, ry, rz);
+            m.castShadow = true;
+            return m;
+          };
+          // static frame (always present, never moves)
+          grp.add(D(BX(DW + 1.6, 0.8, 1.3), metal, 0, DH + 0.4, 0)); // lintel
+          grp.add(D(BX(0.8, DH + 0.8, 1.3), metal, -halfW - 0.4, DH / 2, 0)); // jambs
+          grp.add(D(BX(0.8, DH + 0.8, 1.3), metal, halfW + 0.4, DH / 2, 0));
+          grp.add(D(BX(DW + 1.6, 0.28, 1.4), corem, 0, DH + 0.82, 0)); // top glow
+          grp.add(D(BX(0.3, DH + 0.8, 1.4), corem, -halfW - 0.4, DH / 2, 0));
+          grp.add(D(BX(0.3, DH + 0.8, 1.4), corem, halfW + 0.4, DH / 2, 0));
+          let update;
+          if (variant === 0) {
+            // BLAST DOORS — two chevroned slabs split left/right
+            const half = (sign) => {
+              const h = new THREE.Group();
+              h.add(
+                D(
+                  BX(halfW - 0.08, DH, 0.7),
+                  metal,
+                  -sign * (halfW / 2),
+                  DH / 2,
+                  0,
+                ),
+              );
+              for (let k = 0; k < 3; k++)
+                h.add(
+                  D(
+                    BX(halfW * 0.78, 0.34, 0.78),
+                    glow,
+                    -sign * (halfW / 2),
+                    1.2 + k * 1.7,
+                    0,
+                    0,
+                    0,
+                    sign * 0.5,
+                  ),
+                );
+              for (let k = 0; k < 4; k++)
+                h.add(
+                  D(
+                    CY(0.12, 0.12, 0.82, 8),
+                    trim,
+                    -sign * (halfW - 0.45),
+                    0.9 + k * 1.4,
+                    0,
+                    Math.PI / 2,
+                  ),
+                );
+              for (let k = 0; k < 5; k++)
+                h.add(
+                  D(BX(0.5, 0.62, 0.85), trim, -sign * 0.26, 0.7 + k * 1.15, 0),
+                ); // seam teeth
+              return h;
+            };
+            const L = half(1),
+              R = half(-1);
+            grp.add(L, R);
+            update = (p) => {
+              L.position.x = -p * halfW;
+              R.position.x = p * halfW;
+            };
+          } else if (variant === 1) {
+            // PORTCULLIS — toothed grid rises, counterweight drops
+            const grid = new THREE.Group();
+            grid.add(D(BX(DW, DH, 0.45), metal, 0, DH / 2, 0));
+            for (let b = 0; b < 5; b++) {
+              const x = -halfW + 0.9 + b * ((DW - 1.8) / 4);
+              grid.add(D(BX(0.4, DH, 0.7), trim, x, DH / 2, 0));
+              grid.add(D(BX(0.13, DH, 0.74), corem, x, DH / 2, 0));
+            }
+            for (let r = 0; r < 4; r++)
+              grid.add(D(BX(DW, 0.4, 0.7), trim, 0, 0.8 + r * 1.5, 0));
+            for (let b = 0; b < 6; b++) {
+              const x = -halfW + 0.55 + b * ((DW - 1.1) / 5);
+              grid.add(D(CONE(0.24, 0.75, 5), trim, x, -0.18, 0, Math.PI));
+            }
+            grp.add(grid);
+            const cw = D(BX(DW - 0.4, 0.9, 0.6), trim, 0, DH + 0.4, 0.5); // counterweight
+            grp.add(cw);
+            update = (p) => {
+              grid.position.y = p * (DH + 0.9);
+              cw.position.y = DH + 0.4 - p * (DH + 0.9);
+            };
+          } else if (variant === 2) {
+            // IRIS PINWHEEL — four blades rotate out and retract
+            const blades = [];
+            for (let q = 0; q < 4; q++) {
+              const blade = new THREE.Group();
+              blade.add(
+                D(BX(DW * 0.66, DH * 0.66, 0.6), metal, DW * 0.2, 0, 0),
+              );
+              blade.add(D(BX(DW * 0.6, 0.3, 0.64), glow, DW * 0.2, 0, 0));
+              blade.add(D(BX(0.34, DH * 0.6, 0.64), corem, DW * 0.46, 0, 0));
+              blade.position.set(0, DH / 2, 0);
+              blade.rotation.z = (q * Math.PI) / 2;
+              grp.add(blade);
+              blades.push({ blade, ang: (q * Math.PI) / 2 });
+            }
+            update = (p) => {
+              for (const { blade, ang } of blades) {
+                blade.rotation.z = ang + p * 1.4;
+                const r = p * DW * 0.75;
+                const a = ang + Math.PI / 4;
+                blade.position.set(
+                  Math.cos(a) * r,
+                  DH / 2 + Math.sin(a) * r,
+                  0,
+                );
+              }
+            };
+          } else if (variant === 3) {
+            // QUAD PISTON — four panels retract to the corners on rods
+            const quads = [];
+            for (const [sx, sy] of [
+              [-1, 1],
+              [1, 1],
+              [-1, -1],
+              [1, -1],
+            ]) {
+              const q = new THREE.Group();
+              const cy = DH / 2 + sy * (DH / 4);
+              q.add(
+                D(
+                  BX(halfW - 0.12, DH / 2 - 0.12, 0.7),
+                  metal,
+                  sx * (halfW / 2),
+                  cy,
+                  0,
+                ),
+              );
+              q.add(
+                D(BX(halfW - 0.6, 0.28, 0.74), glow, sx * (halfW / 2), cy, 0),
+              );
+              q.add(
+                D(
+                  CY(0.16, 0.16, 1.7, 8),
+                  trim,
+                  sx * (halfW - 0.5),
+                  cy,
+                  -0.05,
+                  0,
+                  0,
+                  Math.PI / 2,
+                ),
+              );
+              q.add(
+                D(
+                  CY(0.16, 0.16, 1.3, 8),
+                  trim,
+                  sx * (halfW / 2),
+                  cy - sy * (DH / 5),
+                  0,
+                ),
+              );
+              grp.add(q);
+              quads.push({ q, sx, sy });
+            }
+            update = (p) => {
+              for (const { q, sx, sy } of quads)
+                q.position.set(sx * p * halfW, sy * p * (DH / 2), 0);
+            };
+          } else {
+            // ROTARY GEARS — two interlocking cogs counter-spin and part
+            const gear = () => {
+              const gg = new THREE.Group();
+              const R = halfW * 0.92;
+              gg.add(D(CY(R, R, 0.7, 24), metal, 0, 0, 0, Math.PI / 2));
+              gg.add(
+                D(CY(R * 0.5, R * 0.5, 0.8, 20), trim, 0, 0, 0, Math.PI / 2),
+              );
+              gg.add(
+                D(CY(R * 0.2, R * 0.2, 0.92, 12), corem, 0, 0, 0, Math.PI / 2),
+              );
+              for (let t = 0; t < 12; t++) {
+                const a = (t / 12) * Math.PI * 2;
+                gg.add(
+                  D(
+                    BX(0.55, 0.7, 0.72),
+                    metal,
+                    Math.cos(a) * R,
+                    Math.sin(a) * R,
+                    0,
+                    0,
+                    0,
+                    a,
+                  ),
+                );
+              }
+              for (let s = 0; s < 6; s++) {
+                const a = (s / 6) * Math.PI * 2;
+                gg.add(
+                  D(
+                    BX(R * 0.85, 0.18, 0.74),
+                    corem,
+                    (Math.cos(a) * R) / 2,
+                    (Math.sin(a) * R) / 2,
+                    0,
+                    0,
+                    0,
+                    a,
+                  ),
+                );
+              }
+              return gg;
+            };
+            const g1 = gear(),
+              g2 = gear();
+            g1.position.set(-halfW * 0.5, DH / 2, 0);
+            g2.position.set(halfW * 0.5, DH / 2, 0);
+            grp.add(g1, g2);
+            update = (p) => {
+              g1.rotation.z = p * 4.2;
+              g2.rotation.z = -p * 4.2;
+              g1.position.x = -halfW * 0.5 - p * halfW * 0.85;
+              g2.position.x = halfW * 0.5 + p * halfW * 0.85;
+            };
+          }
+          update(0);
+          return { group: grp, update };
+        }
         function buildSector(i) {
           if (i <= maxSector) return;
           maxSector = i;
@@ -966,22 +1242,20 @@
             cs.position.set(sx * (CORR_W / 2 - 0.05), 4.6, cz);
             g.add(cs);
           }
-          const gateMat = new THREE.MeshStandardMaterial({
-            color: 0x55202a,
-            roughness: 0.4,
-            metalness: 0.6,
-            emissive: 0x300810,
-          });
-          const gate = new THREE.Mesh(
-            new THREE.BoxGeometry(CORR_W, 5.6, 0.8),
-            gateMat,
-          );
-          gate.position.set(0, 2.8, c - S - 0.6);
-          g.add(gate);
+          const door = buildDoor(i, sc);
+          door.group.position.set(0, 0, c - S - 0.6);
+          g.add(door.group);
           const gLight = new THREE.PointLight(0xff3050, 1.2, 12);
           gLight.position.set(0, 4, c - S - 2);
           g.add(gLight);
-          gates[i] = { mesh: gate, open: false, light: gLight };
+          gates[i] = {
+            group: door.group,
+            update: door.update,
+            open: false,
+            opening: false,
+            openT: 0,
+            light: gLight,
+          };
           scene.add(g);
           sectorGroups.push(g);
         }
@@ -989,13 +1263,16 @@
           const gt = gates[i];
           if (!gt || gt.open) return;
           gt.open = true;
+          gt.opening = true;
+          gt.openT = 0;
           gt.light.color.setHex(0xb8ff2e);
+          gt.light.intensity = 2.4;
           buildSector(i + 1);
           sfx.gate();
-          quip("GATE'S OPEN. KEEP WALKING.");
+          quip("THE WAY GRINDS OPEN. KEEP WALKING.");
           document.getElementById("objtext").textContent =
             "ADVANCE TO SECTOR " + (i + 2);
-          shake = Math.min(shake + 0.3, 0.8);
+          shake = Math.min(shake + 0.4, 0.9);
         }
         function walkable(x, z) {
           for (let i = 0; i <= maxSector; i++) {
@@ -2299,6 +2576,7 @@
           emissive: 0x500412,
         });
         const eyeMatShared = new THREE.MeshBasicMaterial({ color: 0xff2030 });
+        const eyeMatBile = new THREE.MeshBasicMaterial({ color: 0xc8ff20 });
         const goldMat = new THREE.MeshStandardMaterial({
           color: 0xffd24a,
           roughness: 0.3,
@@ -2306,6 +2584,82 @@
           emissive: 0x4a3500,
         });
         const toothGeo = new THREE.ConeGeometry(0.06, 0.22, 4);
+        // ---- uglier new-breed mats ----
+        const bileMat = new THREE.MeshStandardMaterial({
+          color: 0x3a5410,
+          roughness: 0.25,
+          emissive: 0x5ec018,
+          flatShading: true,
+        });
+        const boilMat = new THREE.MeshStandardMaterial({
+          color: 0x40060e,
+          roughness: 0.25,
+          emissive: 0x9020e0,
+          flatShading: true,
+        });
+        const tendrilGeo = new THREE.ConeGeometry(0.07, 0.95, 4);
+        // writhing afterimage trail (darter)
+        const afterimages = [];
+        const afterMat = new THREE.MeshBasicMaterial({
+          color: 0x9a30f0,
+          transparent: true,
+          opacity: 0.5,
+          depthWrite: false,
+        });
+        function spawnAfterimage(e) {
+          const m = new THREE.Mesh(e.body.geometry, afterMat.clone());
+          m.position.set(
+            e.grp.position.x,
+            e.body.position.y + e.grp.position.y,
+            e.grp.position.z,
+          );
+          m.scale.copy(e.body.scale);
+          m.quaternion.copy(e.grp.quaternion);
+          scene.add(m);
+          afterimages.push({ m, life: 0.26, max: 0.26 });
+        }
+        // extra gristle for the uglier breeds; returns the pulsing sac
+        function dressUgly(body, spitter) {
+          for (let i = 0; i < 8; i++) {
+            const t = new THREE.Mesh(tendrilGeo, spitter ? bileMat : boneMat);
+            const a = Math.random() * Math.PI * 2,
+              el = (Math.random() - 0.35) * Math.PI * 0.7;
+            const dir = new V(
+              Math.cos(a) * Math.cos(el),
+              Math.sin(el),
+              Math.sin(a) * Math.cos(el),
+            );
+            t.position.copy(dir).multiplyScalar(0.95);
+            t.quaternion.setFromUnitVectors(
+              new V(0, 1, 0),
+              dir.clone().normalize(),
+            );
+            t.scale.y = 0.6 + Math.random() * 1.4;
+            body.add(t);
+          }
+          // bonus eyes for maximum hideousness
+          for (let i = 0; i < 5; i++) {
+            const ey = new THREE.Mesh(
+              new THREE.SphereGeometry(0.07 + Math.random() * 0.1, 6, 5),
+              spitter ? eyeMatBile : eyeMatShared,
+            );
+            ey.position
+              .set(
+                (Math.random() - 0.5) * 1.2,
+                (Math.random() - 0.2) * 0.9,
+                (Math.random() - 0.5) * 1.2,
+              )
+              .setLength(0.95);
+            body.add(ey);
+          }
+          const sac = new THREE.Mesh(
+            new THREE.SphereGeometry(spitter ? 0.6 : 0.42, 9, 7),
+            spitter ? bileMat : boilMat,
+          );
+          sac.position.set(0, 0.2, 0.55);
+          body.add(sac);
+          return sac;
+        }
         function dressFlesh(body, big) {
           const nSpikes = big ? 10 : 6;
           for (let i = 0; i < nSpikes; i++) {
@@ -2371,41 +2725,92 @@
         function makeEnemy(type) {
           const grp = new THREE.Group();
           const big = type === "brute",
-            gold = type === "gold";
-          const geo = (big ? bruteGeos : gruntGeos)[
-            Math.floor(Math.random() * 4)
-          ];
-          const mat = gold
-            ? goldMat.clone()
-            : new THREE.MeshStandardMaterial({
-                color:
-                  fleshPalette[Math.floor(Math.random() * fleshPalette.length)],
-                roughness: 0.55,
-                emissive: 0x200008,
-                flatShading: true,
-              });
+            gold = type === "gold",
+            darter = type === "darter",
+            spitter = type === "spitter";
+          let geo, mat, baseScale, bodyY, idleEmissive;
+          if (gold) {
+            geo = gruntGeos[Math.floor(Math.random() * 4)];
+            mat = goldMat.clone();
+            baseScale = 1.05;
+            bodyY = 1;
+            idleEmissive = 0x4a3500;
+          } else if (darter) {
+            geo = gruntGeos[Math.floor(Math.random() * 4)];
+            mat = new THREE.MeshStandardMaterial({
+              color: 0x2a0840,
+              roughness: 0.35,
+              emissive: 0x6010b0,
+              flatShading: true,
+            });
+            baseScale = 0.82;
+            bodyY = 0.85;
+            idleEmissive = 0x40089a;
+          } else if (spitter) {
+            geo = bruteGeos[Math.floor(Math.random() * 4)];
+            mat = new THREE.MeshStandardMaterial({
+              color: 0x35490e,
+              roughness: 0.3,
+              emissive: 0x4aa018,
+              flatShading: true,
+            });
+            baseScale = 1.3;
+            bodyY = 1.2;
+            idleEmissive = 0x2e6010;
+          } else {
+            geo = (big ? bruteGeos : gruntGeos)[Math.floor(Math.random() * 4)];
+            mat = new THREE.MeshStandardMaterial({
+              color:
+                fleshPalette[Math.floor(Math.random() * fleshPalette.length)],
+              roughness: 0.55,
+              emissive: 0x200008,
+              flatShading: true,
+            });
+            baseScale = big ? 1.8 : 1.05;
+            bodyY = big ? 1.7 : 1;
+            idleEmissive = 0x200008;
+          }
           const body = new THREE.Mesh(geo, mat);
           body.castShadow = true;
-          body.position.y = big ? 1.7 : 1;
-          const baseScale = big ? 1.8 : 1.05;
+          body.position.y = bodyY;
           body.scale.setScalar(baseScale);
           grp.add(body);
           dressFlesh(body, big);
+          const sac = darter || spitter ? dressUgly(body, spitter) : null;
           scene.add(grp);
           return {
             grp,
             body,
             mat,
             baseScale,
-            hp: big ? 9 : 3,
-            speed: big ? 3.2 : gold ? 7.5 : 5 + Math.random() * 2.5,
+            idleEmissive,
+            sac,
+            hp: big ? 9 : spitter ? 5 : darter ? 2 : 3,
+            speed: big
+              ? 3.2
+              : gold
+                ? 7.5
+                : darter
+                  ? 9
+                  : spitter
+                    ? 3.6
+                    : 5 + Math.random() * 2.5,
             big,
             gold,
+            darter,
+            spitter,
             dead: false,
             stagger: 0,
             hurt: 0,
             t: Math.random() * 10,
             life: gold ? 9 : Infinity,
+            // agile / ranged behaviour timers
+            dashCd: 1 + Math.random() * 1.5,
+            dashing: 0,
+            dashDir: new V(),
+            juke: Math.random() * Math.PI * 2,
+            spitCd: 1.4 + Math.random() * 1.6,
+            trail: 0,
           };
         }
 
@@ -2788,6 +3193,14 @@
         }
 
         // ================= WAVES + EVENTS =================
+        // weighted roster — the uglier breeds creep in as the run heats up
+        function pickEnemyType() {
+          const r = Math.random();
+          if (totalWave > 2 && r < 0.18) return "brute";
+          if (totalWave > 1 && r < 0.34) return "darter";
+          if (totalWave > 3 && r < 0.46) return "spitter";
+          return "grunt";
+        }
         function spawnWave() {
           totalWave++;
           sectorWave++;
@@ -2831,9 +3244,7 @@
                 if (!playing) return;
                 const a = Math.random() * Math.PI * 2,
                   r = S - 3;
-                const e = makeEnemy(
-                  totalWave > 2 && Math.random() < 0.18 ? "brute" : "grunt",
-                );
+                const e = makeEnemy(pickEnemyType());
                 e.grp.position.set(
                   Math.cos(a) * r,
                   0,
@@ -3057,6 +3468,8 @@
             e.big ? 2 : 1.2,
           );
           shake = Math.min(shake + (e.big ? 0.55 : 0.3), 1.1);
+          // a popped spitter dumps its bile sac
+          if (e.spitter) addAcidPool(p.x, p.z, 2.4, 5);
           if (Math.random() < (e.big ? 0.6 : 0.14) * stats.dropMul)
             dropPickup(p.x, p.z);
           updateHud();
@@ -3204,6 +3617,11 @@
           pMat.size = reduceFx ? 0.26 : 0.32;
           for (const e of enemies) scene.remove(e.grp);
           enemies.length = 0;
+          for (const a of afterimages) {
+            scene.remove(a.m);
+            a.m.material.dispose();
+          }
+          afterimages.length = 0;
           if (boss) {
             scene.remove(boss.grp);
             boss = null;
@@ -3564,10 +3982,59 @@
                 .setY(0);
               const dist = dir.length();
               dir.normalize();
-              if (e.gold) dir.multiplyScalar(-1); // it flees
-              e.grp.position.addScaledVector(dir, e.speed * dt);
+              let mvSpeed = e.speed;
               if (e.gold) {
-                // keep it in the sector
+                dir.multiplyScalar(-1); // it flees
+              } else if (e.darter) {
+                // agile juking with periodic lunges
+                e.dashCd -= dt;
+                if (e.dashing > 0) {
+                  e.dashing -= dt;
+                  dir.copy(e.dashDir);
+                  mvSpeed = e.speed * 3.4;
+                } else {
+                  e.juke += dt * 4.5;
+                  const perp = new V(-dir.z, 0, dir.x).multiplyScalar(
+                    Math.sin(e.juke) * 0.95,
+                  );
+                  dir.add(perp).normalize();
+                  if (e.dashCd <= 0 && dist < 17 && dist > 2.2) {
+                    e.dashing = 0.4;
+                    e.dashCd = 1.5 + Math.random() * 1.4;
+                    e.dashDir.copy(dir);
+                  }
+                }
+                // sickly afterimage trail
+                e.trail -= dt;
+                if (e.trail <= 0 && !reduceFx) {
+                  spawnAfterimage(e);
+                  e.trail = 0.05;
+                }
+              } else if (e.spitter) {
+                // bloated bile-lobber: kites and keeps its distance
+                e.juke += dt * 2.4;
+                const perp = new V(-dir.z, 0, dir.x).multiplyScalar(
+                  Math.sin(e.juke),
+                );
+                if (dist < 9)
+                  dir.multiplyScalar(-1); // back off
+                else if (dist <= 13) dir.set(0, 0, 0); // hold the line
+                dir.add(perp);
+                if (dir.lengthSq() > 0.0001) dir.normalize();
+                e.spitCd -= dt;
+                if (e.spitCd <= 0 && dist < 24) {
+                  e.spitCd = 1.4 + Math.random() * 1.6;
+                  spitAcid(
+                    new V(e.grp.position.x, 1.2, e.grp.position.z),
+                    player.position,
+                    16,
+                  );
+                  if (e.sac) e.sac.scale.setScalar(0.4);
+                }
+              }
+              e.grp.position.addScaledVector(dir, mvSpeed * dt);
+              if (e.gold || e.darter || e.spitter) {
+                // these wander/flee, so pen them in the sector
                 const c = zc(currentSector);
                 e.grp.position.x = Math.max(
                   -S + 2,
@@ -3590,11 +4057,19 @@
                 e.baseScale * pul,
               );
               e.body.rotation.y = Math.sin(e.t * 3) * 0.25;
-              e.grp.position.y = Math.abs(Math.sin(e.t * 8)) * 0.18;
+              e.grp.position.y =
+                Math.abs(Math.sin(e.t * (e.darter ? 14 : 8))) *
+                (e.darter ? 0.28 : 0.18);
+              // throbbing sac on the uglier breeds
+              if (e.sac) {
+                const target = 1 + Math.sin(e.t * 5) * 0.18;
+                e.sac.scale.x += (target - e.sac.scale.x) * Math.min(dt * 6, 1);
+                e.sac.scale.y = e.sac.scale.z = e.sac.scale.x;
+              }
               if (e.hurt > 0) {
                 e.hurt -= dt;
                 e.mat.emissive.setHex(0xa01020);
-              } else if (!e.gold) e.mat.emissive.setHex(0x200008);
+              } else if (!e.gold) e.mat.emissive.setHex(e.idleEmissive);
               if (Math.random() < dt * 1.2)
                 spawnBlood(
                   e.grp.position.x,
@@ -3703,6 +4178,20 @@
               if (tg.onDone) tg.onDone();
             }
           }
+          // doors grinding open
+          for (let i = 0; i < gates.length; i++) {
+            const gt = gates[i];
+            if (!gt || !gt.opening) continue;
+            gt.openT = Math.min(gt.openT + dt / 2.4, 1);
+            const p = gt.openT;
+            const e = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+            gt.update(e);
+            gt.light.intensity = 2.4 + Math.sin(t * 22) * 0.9 * (1 - p);
+            if (gt.openT >= 1) {
+              gt.opening = false;
+              gt.light.intensity = 1.4;
+            }
+          }
           // acid pool shimmer + dynamic expiry
           for (let i = acidPools.length - 1; i >= 0; i--) {
             const a = acidPools[i];
@@ -3729,6 +4218,17 @@
             if (b.life <= 0) {
               scene.remove(b.l);
               beams.splice(i, 1);
+            }
+          }
+          // darter afterimage trails
+          for (let i = afterimages.length - 1; i >= 0; i--) {
+            const a = afterimages[i];
+            a.life -= dt;
+            a.m.material.opacity = Math.max((a.life / a.max) * 0.5, 0);
+            if (a.life <= 0) {
+              scene.remove(a.m);
+              a.m.material.dispose();
+              afterimages.splice(i, 1);
             }
           }
           for (const bl of boomLights) {
