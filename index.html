@@ -756,6 +756,117 @@
         color: var(--gold);
         border-color: var(--gold);
       }
+
+      /* ============ ORIGIN CINEMATIC INTRO ============ */
+      #intro {
+        position: fixed;
+        inset: 0;
+        z-index: 40;
+        display: none;
+        background: #050304;
+        overflow: hidden;
+      }
+      #intro.open {
+        display: block;
+      }
+      #introStage {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      #introImg {
+        max-height: 96%;
+        max-width: 92%;
+        object-fit: contain;
+        opacity: 0;
+        will-change: transform, opacity;
+        box-shadow: 0 0 60px rgba(0, 0, 0, 0.9);
+        border-radius: 4px;
+      }
+      /* cinematic letterbox bars */
+      #intro .ibar {
+        position: absolute;
+        left: 0;
+        right: 0;
+        height: 7vh;
+        background: #000;
+        z-index: 2;
+        pointer-events: none;
+      }
+      #intro .ibar.top {
+        top: 0;
+      }
+      #intro .ibar.bot {
+        bottom: 0;
+      }
+      #intro .iglow {
+        position: absolute;
+        inset: 0;
+        z-index: 1;
+        pointer-events: none;
+        background: radial-gradient(
+          ellipse at center,
+          transparent 55%,
+          rgba(120, 8, 24, 0.28) 100%
+        );
+        mix-blend-mode: screen;
+      }
+      #introSkip {
+        position: absolute;
+        bottom: calc(7vh + 16px);
+        right: 22px;
+        z-index: 3;
+        font-family: inherit;
+        background: rgba(13, 8, 11, 0.66);
+        border: 1px solid var(--steel);
+        color: #cfc6cc;
+        font-size: 12px;
+        letter-spacing: 3px;
+        padding: 9px 18px;
+        cursor: pointer;
+        font-weight: bold;
+        transition:
+          color 0.15s,
+          border-color 0.15s,
+          background 0.15s;
+      }
+      #introSkip:hover {
+        color: #fff;
+        border-color: var(--gold);
+        background: rgba(30, 18, 24, 0.85);
+      }
+      #introHint {
+        position: absolute;
+        bottom: calc(7vh + 18px);
+        left: 22px;
+        z-index: 3;
+        font-size: 11px;
+        letter-spacing: 3px;
+        color: #6e646a;
+        pointer-events: none;
+        animation: introHintPulse 2.4s ease-in-out infinite;
+      }
+      @keyframes introHintPulse {
+        0%,
+        100% {
+          opacity: 0.35;
+        }
+        50% {
+          opacity: 0.8;
+        }
+      }
+      #introProg {
+        position: absolute;
+        bottom: 7vh;
+        left: 0;
+        height: 3px;
+        width: 0;
+        background: linear-gradient(90deg, var(--blood), var(--gold));
+        z-index: 3;
+        transition: width 0.25s linear;
+      }
     </style>
   </head>
   <body>
@@ -859,6 +970,17 @@
           width="260"
           height="80"
       /></a>
+    </div>
+
+    <!-- origin comic cinematic intro -->
+    <div id="intro">
+      <div class="ibar top"></div>
+      <div class="ibar bot"></div>
+      <div class="iglow"></div>
+      <div id="introStage"><img id="introImg" alt="Smudge Origins" /></div>
+      <div id="introHint">PANEL HAUS PRESENTS&hellip;</div>
+      <div id="introProg"></div>
+      <button id="introSkip">SKIP &#9654; (i've got a shift in the morning)</button>
     </div>
 
     <button id="hudCollBtn" class="hidden">CARDS [C]</button>
@@ -4744,6 +4866,10 @@
         // ================= INPUT =================
         addEventListener("keydown", (e) => {
           keys[e.code] = true;
+          if (introActive) {
+            endIntro(true);
+            return;
+          }
           if (e.code === "Escape") {
             if (cardOpen) closeCard();
             else if (collectionOpen) closeCollection();
@@ -4786,6 +4912,7 @@
           ch.style.top = e.clientY + "px";
         });
         addEventListener("mousedown", () => {
+          if (introActive) return; // the intro overlay handles its own skip-click
           if (cardOpen || collectionOpen) return; // modal handles its own clicks
           if (cut.active) {
             cut.t = cut.dur;
@@ -5109,9 +5236,176 @@
           .getElementById("hudCollBtn")
           .addEventListener("click", openCollection);
 
+        // ===== CHIPTUNE INTRO MUSIC (bouncy, a little silly) =====
+        let introTimer = null,
+          introGain = null,
+          introStep = 0;
+        function itone(freq, dur, type, vol) {
+          if (!actx || !introGain) return;
+          const t0 = actx.currentTime;
+          const o = actx.createOscillator(),
+            g = actx.createGain();
+          o.type = type;
+          o.frequency.value = freq;
+          g.gain.setValueAtTime(0.0001, t0);
+          g.gain.exponentialRampToValueAtTime(vol, t0 + 0.01);
+          g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+          o.connect(g);
+          g.connect(introGain);
+          o.start(t0);
+          o.stop(t0 + dur + 0.03);
+        }
+        function startIntroMusic() {
+          if (!actx) return;
+          if (!introGain) {
+            introGain = actx.createGain();
+            introGain.connect(master);
+          }
+          const t = actx.currentTime;
+          introGain.gain.cancelScheduledValues(t);
+          introGain.gain.setValueAtTime(0.0001, t);
+          introGain.gain.exponentialRampToValueAtTime(0.5, t + 0.5);
+          introStep = 0;
+          introTimer = setInterval(introMusicStep, 60000 / 140 / 4); // 16ths @140bpm
+        }
+        function introMusicStep() {
+          if (!actx || muted) {
+            introStep++;
+            return;
+          }
+          const s = introStep++;
+          const bar = Math.floor(s / 16) % 4;
+          const roots = [261.63, 196.0, 220.0, 174.61]; // C-G-Am-F : sweet & heroic
+          const root = roots[bar];
+          const st = s % 16;
+          if (st % 4 === 0) itone(root / 2, 0.2, "square", 0.3); // bouncy bass
+          const arp = [0, 4, 7, 12, 7, 4, 7, 12];
+          itone(root * Math.pow(2, arp[st % 8] / 12), 0.12, "square", 0.15); // lead
+          if (st % 2 === 1) noiseHit(0.025, 0.1, 8000); // hat
+          // silly little flourishes at phrase turns
+          if (st === 14 && bar === 3) itone(root * 4, 0.22, "triangle", 0.18);
+          if (st === 6 && bar === 1)
+            itone(root * 2 * Math.pow(2, 3 / 12), 0.16, "triangle", 0.14);
+        }
+        function stopIntroMusic() {
+          if (introTimer) {
+            clearInterval(introTimer);
+            introTimer = null;
+          }
+          if (introGain && actx) {
+            const t = actx.currentTime;
+            introGain.gain.cancelScheduledValues(t);
+            try {
+              introGain.gain.setValueAtTime(
+                Math.max(introGain.gain.value, 0.0001),
+                t,
+              );
+            } catch (e) {}
+            introGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
+          }
+        }
+
+        // ===== ORIGIN CINEMATIC INTRO (Ken-Burns comic pages) =====
+        const INTRO_PAGES = [
+          "Smudge_origins/page-01.webp",
+          "Smudge_origins/page-02.webp",
+          "Smudge_origins/page-03.webp",
+          "Smudge_origins/page-04.webp",
+          "Smudge_origins/page-05.webp",
+          "Smudge_origins/page-06.webp",
+          "Smudge_origins/page-07.webp",
+          "Smudge_origins/page-08.webp",
+        ];
+        // slow pan/zoom pairs [from, to], cycled for variety
+        const KEN = [
+          ["scale(1.06) translate(-2%, -1%)", "scale(1.12) translate(2%, 1%)"],
+          ["scale(1.12) translate(2%, 1%)", "scale(1.04) translate(-2%, -1%)"],
+          ["scale(1.05) translate(0, 2%)", "scale(1.13) translate(0, -2%)"],
+          ["scale(1.13) translate(-2%, 1%)", "scale(1.05) translate(2%, -1%)"],
+        ];
+        let introActive = false,
+          introTimers = [],
+          introDone = null;
+        const PAGE_MS = 3600;
+        function preloadIntro() {
+          for (const p of INTRO_PAGES) {
+            const im = new Image();
+            im.src = p;
+          }
+        }
+        function showIntroPage(i) {
+          const img = document.getElementById("introImg");
+          const ken = KEN[i % KEN.length];
+          img.style.transition = "none";
+          img.style.opacity = "0";
+          img.style.transform = ken[0];
+          img.src = INTRO_PAGES[i];
+          document.getElementById("introProg").style.width =
+            ((i + 1) / INTRO_PAGES.length) * 100 + "%";
+          requestAnimationFrame(() =>
+            requestAnimationFrame(() => {
+              if (!introActive) return;
+              img.style.transition =
+                "opacity 0.6s ease, transform " + (PAGE_MS + 600) + "ms linear";
+              img.style.opacity = "1";
+              img.style.transform = ken[1];
+            }),
+          );
+        }
+        function playIntro(onDone) {
+          introDone = onDone;
+          introActive = true;
+          document.getElementById("intro").classList.add("open");
+          document.getElementById("introHint").style.display = "";
+          showIntroPage(0);
+          startIntroMusic();
+          introTimers.push(
+            setTimeout(() => {
+              const h = document.getElementById("introHint");
+              if (h) h.style.display = "none";
+            }, PAGE_MS),
+          );
+          for (let i = 1; i < INTRO_PAGES.length; i++)
+            introTimers.push(
+              setTimeout(() => {
+                if (introActive) showIntroPage(i);
+              }, i * PAGE_MS),
+            );
+          introTimers.push(
+            setTimeout(() => endIntro(false), INTRO_PAGES.length * PAGE_MS + 700),
+          );
+        }
+        function endIntro(skipped) {
+          if (!introActive) return;
+          introActive = false;
+          for (const t of introTimers) clearTimeout(t);
+          introTimers = [];
+          stopIntroMusic();
+          document.getElementById("intro").classList.remove("open");
+          const cb = introDone;
+          introDone = null;
+          if (cb) cb();
+        }
+        document
+          .getElementById("introSkip")
+          .addEventListener("click", () => endIntro(true));
+        document.getElementById("intro").addEventListener("click", (e) => {
+          if (e.target.id === "introSkip") return;
+          endIntro(true);
+        });
+        preloadIntro();
+
         // ================= FLOW =================
         const overlay = document.getElementById("overlay");
-        document.getElementById("startbtn").addEventListener("click", start);
+        function beginGame() {
+          initAudio();
+          setMuted(document.getElementById("muteChk").checked);
+          overlay.classList.add("hidden");
+          playIntro(start); // roll the origin comic, then drop into the pit
+        }
+        document
+          .getElementById("startbtn")
+          .addEventListener("click", beginGame);
         function start() {
           initAudio();
           setMuted(document.getElementById("muteChk").checked);
